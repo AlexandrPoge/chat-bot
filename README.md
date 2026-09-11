@@ -4,6 +4,8 @@ Helpwise is an embeddable, source-grounded AI support chatbot. Teams bring their
 
 This project is an MVP for the Paralect Product Academy chatbot-builder assignment.
 
+See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and screenshot checklist.
+
 ## Product scope
 
 - A conversion-focused product landing page with pricing
