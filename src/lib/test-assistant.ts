@@ -12,7 +12,7 @@ export type TestAnswer = {
 const includesAny = (text: string, terms: string[]) => terms.some((term) => text.includes(term));
 
 function sourceNamed(sources: KnowledgeSource[], fragment: string, fallback: string) {
-  return sources.find((source) => source.name.toLowerCase().includes(fragment))?.name ?? fallback;
+  return sources.find((source) => source.name.toLowerCase().includes(fragment))?.name ?? sources[0]?.name ?? fallback;
 }
 
 function bestSentence(summary: string, question: string) {

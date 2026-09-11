@@ -41,3 +41,21 @@ export function botSettingsSnapshot() {
 }
 
 export const defaultBotSettingsSnapshot = JSON.stringify(DEFAULT_BOT_SETTINGS);
+
+function profileValue(text: string, labels: string[]) {
+  const labelPattern = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const match = text.match(new RegExp(`(?:${labelPattern})\\s*:\\s*([^\\n\\r.]{2,120})`, "i"));
+  return match?.[1]?.trim();
+}
+
+export function profileFromSource(text: string): Partial<BotSettings> {
+  const name = profileValue(text, ["BOT_NAME", "BOT NAME", "НАЗВАНИЕ БОТА"]);
+  const welcome = profileValue(text, ["WELCOME_MESSAGE", "WELCOME MESSAGE", "ПРИВЕТСТВИЕ"]);
+  const accent = profileValue(text, ["ACCENT_COLOR", "ACCENT COLOR", "ЦВЕТ БОТА"]);
+  const profile: Partial<BotSettings> = {};
+
+  if (name) profile.name = name;
+  if (welcome) profile.welcome = welcome;
+  if (accent && /^#[0-9A-Fa-f]{6}$/.test(accent)) profile.accent = accent;
+  return profile;
+}

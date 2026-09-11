@@ -23,7 +23,7 @@
     "bottom:20px",
     "z-index:2147483647",
     "width:380px",
-    "height:540px",
+    "height:480px",
     "max-width:calc(100vw - 32px)",
     "max-height:calc(100vh - 32px)",
     "border:0",

@@ -33,7 +33,7 @@ export default function Home() {
             <a className="transition hover:text-[#1b1e1e]" href="#pricing">Pricing</a>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <a className="hidden text-sm font-medium text-[#4a514b] sm:block" href="#login">Log in</a>
+            <a className="hidden text-sm font-medium text-[#4a514b] transition hover:text-[#1d2420] sm:block" href="/login">Log in</a>
             <a className="inline-flex items-center gap-2 rounded-xl bg-[#1d2420] px-3.5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#313b35] sm:px-4" href="/dashboard">Build your bot <ArrowUpRight /></a>
           </div>
         </nav>

@@ -72,8 +72,8 @@ export default function WidgetClient({ botId }: { botId: string }) {
   };
 
   return (
-    <main className="flex min-h-screen items-end bg-transparent p-0 text-[#303a30]">
-      <section className="flex h-[440px] w-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#dce5d8] bg-white shadow-[0_18px_55px_rgba(24,40,28,.18)] sm:h-[470px]">
+    <main className="flex min-h-screen bg-transparent p-0 text-[#303a30]">
+      <section className="flex h-dvh min-h-[440px] w-full flex-col overflow-hidden rounded-[22px] border border-[#dce5d8] bg-white shadow-[0_18px_55px_rgba(24,40,28,.18)]">
         <header className="flex shrink-0 items-center gap-3 bg-[#202823] px-4 py-3.5 text-white">
           <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-xl transition-transform duration-300 hover:scale-110" style={{ backgroundColor: settings.accent }}><Image alt={`${settings.name} mascot`} className="scale-[1.7] object-contain" height={36} priority src="/mascot/orbit-support-mascot.png" width={36} /></span>
           <div className="min-w-0"><p className="truncate text-sm font-semibold">{settings.name}</p><p className="mt-0.5 text-[11px] text-[#b9c4b8]">Usually replies instantly</p></div>
