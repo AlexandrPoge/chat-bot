@@ -27,5 +27,5 @@ export async function extractFileSummary(file: File): Promise<string> {
 function compact(value: string) {
   const text = value.replace(/\s+/g, " ").trim();
   if (!text) return "No selectable text was found in this file. Upload a text-based PDF, TXT, or Markdown document.";
-  return text.length > 900 ? `${text.slice(0, 897)}...` : text;
+  return text.length > 12000 ? `${text.slice(0, 11997)}...` : text;
 }

@@ -15,6 +15,15 @@ function sourceNamed(sources: KnowledgeSource[], fragment: string, fallback: str
   return sources.find((source) => source.name.toLowerCase().includes(fragment))?.name ?? fallback;
 }
 
+function sourceExcerpt(summary: string, question: string) {
+  const text = summary.replace(/\s+/g, " ").trim();
+  const keyword = question.split(/\s+/).find((word) => word.length > 3 && text.toLowerCase().includes(word));
+  const position = keyword ? text.toLowerCase().indexOf(keyword) : 0;
+  const start = Math.max(0, position - 180);
+  const end = Math.min(text.length, position + 420);
+  return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
+}
+
 export function getTestAnswer(
   question: string,
   sources: KnowledgeSource[],
@@ -66,7 +75,7 @@ export function getTestAnswer(
 
   if (matchingSource) {
     return {
-      content: `I found a relevant note in ${matchingSource.name}: ${matchingSource.summary} If you share a little more context, I can make the answer more specific.`,
+      content: `I found a relevant note in ${matchingSource.name}: ${sourceExcerpt(matchingSource.summary, normalized)} If you share a little more context, I can make the answer more specific.`,
       source: matchingSource.name,
     };
   }
