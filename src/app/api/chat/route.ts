@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getTestAnswer } from "@/lib/test-assistant";
 
 type Source = {
   name: string;
@@ -45,7 +46,13 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return Response.json({ error: "Live AI is not configured." }, { status: 424 });
+    const answer = getTestAnswer(question, sources, question.length);
+    return Response.json({
+      answer: answer.content,
+      source: answer.source,
+      mode: "test",
+      followUp: answer.followUp,
+    });
   }
 
   const sourceContext = sources
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "The model returned no text." }, { status: 502 });
     }
 
-    return Response.json({ answer });
+    return Response.json({ answer, mode: "live" });
   } catch (error) {
     console.error("Helpwise AI response failed", error);
     return Response.json({ error: "The AI service could not answer right now." }, { status: 502 });

@@ -18,7 +18,7 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 
 - Next.js, TypeScript, Tailwind CSS
 - Supabase: auth, Postgres with pgvector, and private object storage
-- Local Test AI: unlimited deterministic answers and PDF/TXT/Markdown text extraction, with no external API request
+- Free Test AI API: unlimited local answers and PDF/TXT/Markdown text extraction, with no external API request or key
 - Optional OpenAI server route: live answers when a key is configured
 
 ## Getting started
@@ -27,7 +27,7 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 npm run dev
 ```
 
-Open http://localhost:3000 in the browser. The dashboard and widget work in unlimited Test AI mode without credentials or API charges. PDF, TXT, and Markdown text is extracted locally in the browser for the test search. To enable live server-side AI answers, copy `.env.example` to `.env.local` and provide an `OPENAI_API_KEY`.
+Open http://localhost:3000 in the browser. The dashboard, widget, and `/api/chat` route work in unlimited Test AI mode without credentials or API charges. PDF, TXT, and Markdown text is extracted locally in the browser for the test search. To enable live server-side AI answers, copy `.env.example` to `.env.local` and provide an `OPENAI_API_KEY`.
 
 For persistent data, run the Supabase migration and set the Supabase environment values described in [`supabase/README.md`](supabase/README.md). Never commit real API keys or `.env.local`.
 
