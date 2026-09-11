@@ -24,7 +24,7 @@ This project is an MVP for the Paralect Product Academy chatbot-builder assignme
 npm run dev
 ```
 
-Open http://localhost:3000 in the browser. Copy `.env.example` to `.env.local` once backend integration is added. Never commit real API keys.
+Open http://localhost:3000 in the browser. The dashboard works in demo mode without credentials. To enable live server-side AI answers, copy `.env.example` to `.env.local` and provide an `OPENAI_API_KEY`. Never commit real API keys.
 
 ## Quality checks
 

@@ -87,18 +87,36 @@ export default function DashboardClient() {
     event.target.value = "";
   };
 
-  const sendMessage = (event: FormEvent) => {
+  const sendMessage = async (event: FormEvent) => {
     event.preventDefault();
     const value = question.trim();
     if (!value || isAnswering) return;
     setMessages((items) => [...items, { id: Date.now(), role: "user", content: value }]);
     setQuestion("");
     setIsAnswering(true);
-    window.setTimeout(() => {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: value,
+          sources: documents.map(({ name, summary }) => ({ name, summary })),
+        }),
+      });
+      const payload = (await response.json()) as { answer?: string };
+      const liveAnswer = payload.answer;
+      if (response.ok && typeof liveAnswer === "string" && liveAnswer.length > 0) {
+        setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", content: liveAnswer, source: "Live answer from your sources" }]);
+      } else {
+        const answer = answerFor(value, documents);
+        setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", ...answer }]);
+      }
+    } catch {
       const answer = answerFor(value, documents);
       setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", ...answer }]);
+    } finally {
       setIsAnswering(false);
-    }, 650);
+    }
   };
 
   const embedCode = '<script async src="https://widget.helpwise.ai/v1.js" data-bot="orbit_7Q92"></script>';
