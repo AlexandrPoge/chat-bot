@@ -45,6 +45,13 @@ export default function LoginPage() {
         setPending(false);
         return;
       }
+      if (!result.data.session) {
+        setError(mode === "register"
+          ? "Check your email to confirm the account, then log in to sync sources to Supabase."
+          : "Supabase did not create a session. Please try logging in again.");
+        setPending(false);
+        return;
+      }
     }
     writeDemoSession(normalizedEmail);
     router.push("/dashboard");

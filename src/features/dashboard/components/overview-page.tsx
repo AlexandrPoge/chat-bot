@@ -19,7 +19,7 @@ type Props = {
 const metrics: [string, string, string, string, LucideIcon][] = [
   ["Knowledge sources", "", "All indexed", "Your active source is ready, and each uploaded file can be selected separately.", Database],
   ["Answers this month", "438", "↑ 18% vs. Aug", "Most questions are about onboarding and access. Open Conversations to replay customer scenarios.", MessageCircleMore],
-  ["Source confidence", "93%", "Healthy", "Confidence rises when a customer question matches a detailed source. Every answer still shows its citation.", BadgeCheck],
+  ["Source confidence", "93%", "Healthy", "Confidence rises when a customer question matches a detailed source. Every answer remains grounded in the selected source.", BadgeCheck],
 ];
 
 export function OverviewPage(props: Props) {

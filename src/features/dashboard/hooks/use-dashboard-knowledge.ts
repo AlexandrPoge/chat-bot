@@ -91,7 +91,7 @@ export function useDashboardKnowledge(options: Options) {
     const token = await accessToken();
     if (!token) {
       setDocuments((items) => finishSync(items, additions.map((item) => ({ id: item.id, error: "No session" }))));
-      options.notify("The source is ready for Test AI. Sign in to sync it securely to Supabase.");
+      options.notify("The source works in Test AI, but is not synced. Log out, log in to Supabase, then upload it again.");
       event.target.value = "";
       return;
     }
