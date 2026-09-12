@@ -18,10 +18,10 @@ export default function WidgetClient() {
   const previousSource = useRef<number | null>(null);
   useEffect(() => {
     if (previousSource.current !== null && previousSource.current !== activeSource?.id) {
-      setMessages([{ id: Date.now(), role: "assistant", content: `I’m now using “${activeSource?.name ?? "your active source"}”. What can I help with?`, source: activeSource?.name }]);
+      setMessages([{ id: Date.now(), role: "assistant", content: settings.welcome }]);
     }
     previousSource.current = activeSource?.id ?? null;
-  }, [activeSource?.id, activeSource?.name]);
+  }, [activeSource?.id, settings.welcome]);
   const sendMessage = async (event: FormEvent) => {
     event.preventDefault();
     const value = question.trim();
