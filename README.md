@@ -22,6 +22,16 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 - Free Test AI fallback: unlimited local answers without an external API request or key
 - PDF, DOCX, TXT, and Markdown extraction; uploaded source files and extracted chunks sync to Supabase
 
+## Code map
+
+Every TypeScript source file is kept below 120 lines. The entry components are intentionally thin and coordinate feature modules rather than contain business logic.
+
+- `src/features/dashboard/`: dashboard pages, small reusable UI components, and isolated hooks for chat and document state.
+- `src/features/widget/`: the embedded chat's UI parts and browser-storage subscriptions.
+- `src/lib/knowledge/`: server-only Supabase ownership checks, storage upload, and chunking. The route handler only validates HTTP input and delegates work here.
+- `src/lib/test-assistant/`: deterministic fallback reply rules split by generic, product, and dental scenarios.
+- `src/app/api/`: HTTP boundary only; keys and Supabase admin access never reach browser modules.
+
 ## Getting started
 
 ```bash

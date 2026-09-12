@@ -1,170 +1,37 @@
-export type KnowledgeSource = {
-  name: string;
-  summary: string;
-};
+import { dentalAnswer, isDentalQuestion } from "./test-assistant/dental";
+import { bestSentence, CUSTOMER_FILLER_WORDS, pick } from "./test-assistant/helpers";
+import { scenarioAnswer } from "./test-assistant/scenarios";
+import type { KnowledgeSource, TestAnswer } from "./test-assistant/types";
 
-export type TestAnswer = {
-  content: string;
-  source: string;
-  followUp?: string;
-};
+export type { KnowledgeSource, TestAnswer } from "./test-assistant/types";
 
-const includesAny = (text: string, terms: string[]) => terms.some((term) => text.includes(term));
-const CUSTOMER_FILLER_WORDS = new Set(["about", "please", "could", "would", "should", "there", "their", "what", "when", "where", "with", "that", "this", "have", "from", "want", "need", "help", "могу", "хочу", "нужно", "можно", "когда", "какой", "какая", "это", "мне"]);
-
-function sourceNamed(sources: KnowledgeSource[], fragment: string, fallback: string) {
-  return sources.find((source) => source.name.toLowerCase().includes(fragment))?.name ?? sources[0]?.name ?? fallback;
-}
-
-function bestSentence(summary: string, question: string) {
-  const sentences = summary.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).filter(Boolean);
-  const words = question.split(/\s+/).filter((word) => word.length > 3);
-  const matches = sentences.filter((sentence) => words.some((word) => sentence.toLowerCase().includes(word)));
-  const closest = matches.find((sentence) => sentence.length >= 48) ?? matches.sort((left, right) => right.length - left.length)[0] ?? sentences.find((sentence) => sentence.length >= 48) ?? sentences[0] ?? "This source is ready to use in the conversation.";
-  return closest.length > 260 ? `${closest.slice(0, 257)}…` : closest;
-}
-
-function pick<T>(items: T[], index: number) {
-  return items[index % items.length];
-}
-
-function dentalAnswer(question: string, source: KnowledgeSource, inRussian: boolean) {
-  const normalized = question.toLowerCase();
-  const appointment = includesAny(normalized, ["appointment", "book", "visit", "запис", "прием", "приём"]);
-  const emergency = includesAny(normalized, ["emergency", "pain", "swelling", "knocked", "сильн", "боль", "отек", "отёк", "выбил"]);
-  const cleaning = includesAny(normalized, ["clean", "hygiene", "cleaning", "чистк", "гигиен"]);
-  const whitening = includesAny(normalized, ["whiten", "бел", "отбел"]);
-  const firstVisit = includesAny(normalized, ["first", "new patient", "перв", "впервые"]);
-  const repair = includesAny(normalized, ["repair", "teeth", "tooth", "filling", "crown", "леч", "зуб", "пломб", "корон"]);
-
-  if (emergency) return {
-    content: inRussian ? "При сильной боли, отёке или выбитом зубе свяжитесь с клиникой сразу — в источнике это указано как неотложный случай." : "For severe pain, swelling, or a knocked-out tooth, contact the clinic immediately — the guide treats these as urgent symptoms.",
-    source: source.name,
-  };
-  if (appointment) return {
-    content: inRussian ? "Записаться можно по телефону или через сайт клиники. На приём лучше прийти на 10 минут раньше с удостоверением личности и актуальной медицинской информацией." : "You can request an appointment by phone or through the clinic website. Please arrive 10 minutes early with photo ID and any relevant medical information.",
-    source: source.name,
-  };
-  if (cleaning) return {
-    content: inRussian ? "В памятке указано, что большинству пациентов полезна профессиональная чистка раз в шесть месяцев; стоматолог может предложить другой график, исходя из состояния полости рта." : "The guide says most patients benefit from a professional cleaning every six months; the dentist may recommend a different schedule for your oral health.",
-    source: source.name,
-  };
-  if (whitening) return {
-    content: inRussian ? "Отбеливание может улучшить цвет многих натуральных зубов. Перед процедурой стоматолог проверит, подходит ли она вам, и обсудит ожидаемый результат." : "Whitening can improve many natural teeth. The dentist first checks whether it is suitable and discusses the expected result with you.",
-    source: source.name,
-  };
-  if (firstVisit) return {
-    content: inRussian ? "На первом визите команда изучит историю, при необходимости сделает рентген, проведёт осмотр и объяснит персональный план лечения." : "At a first visit, the team reviews your history, takes any needed X-rays, completes an examination, and explains a personalized treatment plan.",
-    source: source.name,
-  };
-  if (repair) return {
-    content: inRussian ? "DentalCare помогает с пломбами и коронками. Разумный первый шаг — консультация: стоматолог осмотрит зуб, предложит подходящее лечение и объяснит сроки." : "DentalCare offers fillings and crowns. A consultation is the best first step: the dentist can assess the tooth, recommend the right treatment, and explain the timeline.",
-    source: source.name,
-  };
-  return {
-    content: inRussian ? "Я могу помочь с записью, первым визитом, чисткой, отбеливанием, пломбами, коронками и неотложными случаями. Скажите, что именно вас интересует." : "I can help with appointments, first visits, cleanings, whitening, fillings, crowns, and urgent cases. Tell me what you would like to arrange.",
-    source: source.name,
-  };
-}
-
-export function getTestAnswer(
-  question: string,
-  sources: KnowledgeSource[],
-  replyIndex = 0,
-): TestAnswer {
-  const normalized = question.toLowerCase().trim();
-  const inRussian = /[а-яё]/i.test(question);
-  const greeting = includesAny(normalized, ["hello", "hi", "hey", "привет", "здравств"]);
-  const thanks = includesAny(normalized, ["thanks", "thank you", "спасибо"]);
-  const guestQuestion = includesAny(normalized, ["invite", "client", "guest", "приглас", "клиент", "гост"]);
-  const billingQuestion = includesAny(normalized, ["plan", "billing", "pro", "price", "cost", "тариф", "биллинг", "цен", "оплат"]);
-  const onboardingQuestion = includesAny(normalized, ["start", "onboard", "workspace", "setup", "начат", "настро", "ворксп"]);
-  const accountQuestion = includesAny(normalized, ["login", "password", "account", "access", "войти", "парол", "аккаунт", "доступ"]);
-  const dentalSource = sources.find((source) => /dental|dentist|teeth|tooth|clinic|стомат|зуб/i.test(`${source.name} ${source.summary}`));
-  const dentalQuestion = includesAny(normalized, ["dental", "dentist", "teeth", "tooth", "filling", "crown", "whiten", "cleaning", "hygiene", "appointment", "repair", "стомат", "зуб", "пломб", "корон", "отбел", "чистк", "прием", "приём"]);
-
-  if (dentalSource && dentalQuestion) return dentalAnswer(question, dentalSource, inRussian);
-
-  if (greeting) {
-    const content = inRussian
-      ? pick(["Привет! Я готов проверить сценарий как настоящий саппорт-бот. Что хочешь узнать: доступ клиентов, настройку рабочего пространства или тарифы?", "Здравствуйте! Я здесь, чтобы помочь по документам Orbit. Задайте обычный вопрос — отвечу кратко и укажу источник.", "Привет! Давайте протестируем чат по-настоящему: спросите про гостей, оплату или запуск команды."], replyIndex)
-      : pick(["Hi! I’m ready to test this like a real support chat. What would you like to solve: client access, workspace setup, or billing?", "Hello! Ask a normal customer question and I’ll keep the answer practical, concise, and grounded in a source.", "Hey! Let’s test a real scenario. You can ask about guests, plans, or onboarding."], replyIndex);
-    return { content, source: "Helpwise Test AI" };
-  }
-
-  if (thanks) {
-    return {
-      content: inRussian ? pick(["Пожалуйста! Если хотите, могу помочь проверить ещё один сценарий из виджета.", "Рад помочь. Можно задать следующий вопрос так, как его сформулировал бы клиент."], replyIndex) : pick(["You’re welcome! Want to test one more customer scenario in the widget?", "Glad to help. Try the next question exactly as a customer would ask it."], replyIndex),
-      source: "Helpwise Test AI",
-    };
-  }
-
-  if (guestQuestion && sources.some((source) => /collaboration|guest|deliverable|share/i.test(`${source.name} ${source.summary}`))) {
-    return {
-      content: inRussian
-        ? pick(["Да. Откройте проект, нажмите Share, введите email клиента и назначьте роль Guest. Гость видит материалы и может комментировать, но не меняет настройки, не приглашает людей и не видит биллинг.", "Клиента лучше добавить как Guest через Share. Это даёт ему доступ к материалам и комментариям, но сохраняет управление проектом и оплатой за владельцем."], replyIndex)
-        : pick(["Yes. Open the project, choose Share, enter the client’s email, and assign the Guest role. Guests can view deliverables and comment, but they cannot change settings, invite others, or access billing.", "Add the client as a Guest from Share. They can review work and comment while the owner retains control over settings, invitations, and billing."], replyIndex),
-      source: sourceNamed(sources, "collaboration", "Team collaboration guide.pdf"),
-      followUp: inRussian ? "Хотите проверить сценарий удаления доступа гостя?" : "Want to test the steps for removing guest access too?",
-    };
-  }
-
-  if (billingQuestion && sources.some((source) => /billing|plan|starter|pro|pricing/i.test(`${source.name} ${source.summary}`))) {
-    return {
-      content: inRussian
-        ? pick(["Pro стоит $39 в месяц. В нём доступны до пяти ботов, неограниченное число источников, собственные цвета, список разрешённых доменов и виджет без брендинга. Starter остаётся бесплатным: один бот и до 20 источников.", "Для старта достаточно Starter: один бот и 20 источников. Pro за $39/месяц нужен, когда важны несколько ботов, кастомный бренд и неограниченная база знаний."], replyIndex)
-        : pick(["Pro is $39 per month. It includes up to five bots, unlimited sources, custom colors, approved-domain controls, and a widget without Helpwise branding. Starter stays free for one bot and 20 sources.", "Starter is enough for a first bot and 20 sources. Choose Pro at $39/month when you need multiple bots, custom branding, and unlimited knowledge."], replyIndex),
-      source: sourceNamed(sources, "billing", "Billing & plans.md"),
-      followUp: inRussian ? "Хотите, я коротко сравню Starter и Pro для вашего сценария?" : "Want a short Starter-versus-Pro comparison for your use case?",
-    };
-  }
-
-  if (onboardingQuestion && sources.some((source) => /onboarding|workspace|member|setup/i.test(`${source.name} ${source.summary}`))) {
-    return {
-      content: inRussian
-        ? pick(["Лучший порядок запуска: создайте workspace, добавьте первый проект, пригласите коллег как Members, затем клиентов как Guests. Владелец сохраняет контроль над правами и биллингом.", "Начните с рабочего пространства и первого проекта. После этого добавьте команду как Members, а внешних клиентов — как Guests: так права доступа остаются понятными."], replyIndex)
-        : pick(["A smooth setup is: create a workspace, create the first project, invite teammates as Members, then add clients as Guests. The owner keeps control of permissions and billing.", "Start with a workspace and first project. Add teammates as Members, then external clients as Guests so access stays clear and controlled."], replyIndex),
-      source: sourceNamed(sources, "onboarding", "Product onboarding.docx"),
-      followUp: inRussian ? "Нужно объяснить разницу между Member и Guest?" : "Would you like a quick Member-versus-Guest explanation?",
-    };
-  }
-
-  if (accountQuestion && sources.some((source) => /account|password|login|access|invite/i.test(`${source.name} ${source.summary}`))) {
-    return {
-      content: inRussian ? pick(["Проверьте, что используете email приглашения, затем попробуйте восстановление пароля. Если доступа всё ещё нет, владелец workspace может повторно отправить приглашение через Share.", "Для доступа сначала используйте email из приглашения. Если вход не проходит, восстановите пароль; владелец workspace при необходимости отправит приглашение повторно."], replyIndex) : pick(["First, make sure you are using the email that received the invitation, then try password recovery. If access still fails, the workspace owner can resend an invite from Share.", "Use the invited email address first. If sign-in still fails, reset the password; the workspace owner can resend the invitation if needed."], replyIndex),
-      source: "Helpwise Test AI",
-      followUp: inRussian ? "Хотите проверить, какие права есть у этой роли?" : "Want to check what permissions this role has?",
-    };
-  }
-
-  const importantWords = normalized.split(/\s+/).filter((word) => word.length > 3 && !CUSTOMER_FILLER_WORDS.has(word));
-  const matchingSource = sources.find((source) => {
+function matchingSource(question: string, sources: KnowledgeSource[]) {
+  const words = question.split(/\s+/).filter((word) => word.length > 3 && !CUSTOMER_FILLER_WORDS.has(word));
+  return sources.find((source) => {
     const haystack = `${source.name} ${source.summary}`.toLowerCase();
-    return importantWords.some((word) => haystack.includes(word));
+    return words.some((word) => haystack.includes(word));
   });
+}
 
-  if (!matchingSource) {
-    return {
-      content: inRussian ? `В активном источнике «${sources[0]?.name ?? "этом документе"}» нет точного ответа на этот вопрос. Добавьте документ по нужной теме или переключите источник — я не буду придумывать ответ.` : `I can’t find a reliable answer to that in “${sources[0]?.name ?? "the active source"}”. Switch to a relevant source or add one — I won’t invent an answer.`,
-      source: sources[0]?.name ?? "Helpwise Test AI",
-    };
+function genericAnswer(question: string, sources: KnowledgeSource[], index: number): TestAnswer {
+  const source = matchingSource(question.toLowerCase(), sources);
+  const inRussian = /[а-яё]/i.test(question);
+  if (!source) {
+    const name = sources[0]?.name ?? (inRussian ? "этом документе" : "the active source");
+    const content = inRussian
+      ? `В активном источнике «${name}» нет точного ответа. Добавьте документ по нужной теме или переключите источник — я не буду придумывать ответ.`
+      : `I can’t find a reliable answer in “${name}”. Switch to a relevant source or add one — I won’t invent an answer.`;
+    return { content, source: sources[0]?.name ?? "Helpwise Test AI" };
   }
+  const excerpt = bestSentence(source.summary, question.toLowerCase());
+  const options = inRussian
+    ? [`Проверил «${source.name}». Коротко: ${excerpt}`, `Вот практичный ответ из «${source.name}»: ${excerpt}`]
+    : [`I checked “${source.name}”. The useful takeaway is: ${excerpt}`, `Here is the practical note from “${source.name}”: ${excerpt}`];
+  return { content: pick(options, index), source: source.name };
+}
 
-  const excerpt = bestSentence(matchingSource.summary, normalized);
-  const templates = inRussian
-    ? [
-      `Проверил «${matchingSource.name}». Коротко: ${excerpt}`,
-      `По этому вопросу ближе всего «${matchingSource.name}»: ${excerpt}`,
-      `Вот практичный ответ из «${matchingSource.name}»: ${excerpt}`,
-    ]
-    : [
-      `I checked “${matchingSource.name}”. The useful takeaway is: ${excerpt}`,
-      `The closest source is “${matchingSource.name}”. In short: ${excerpt}`,
-      `Here is the practical note from “${matchingSource.name}”: ${excerpt}`,
-    ];
-
-  return {
-    content: pick(templates, replyIndex),
-    source: matchingSource.name,
-  };
+export function getTestAnswer(question: string, sources: KnowledgeSource[], replyIndex = 0): TestAnswer {
+  const dentalSource = isDentalQuestion(question, sources);
+  if (dentalSource) return dentalAnswer(question, dentalSource, /[а-яё]/i.test(question));
+  return scenarioAnswer(question, sources, replyIndex) ?? genericAnswer(question, sources, replyIndex);
 }
