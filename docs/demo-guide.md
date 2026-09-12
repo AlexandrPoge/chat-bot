@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The app runs in demo mode without credentials. Add the optional values from `.env.example` before demonstrating live OpenAI answers.
+Open `http://localhost:3000`. The app runs in free Test AI mode without credentials. Add the optional values from `.env.example` before demonstrating source-grounded Gemini answers.
 
 ## Three-minute recording script
 
@@ -33,13 +33,13 @@ Open `http://localhost:3000`. The app runs in demo mode without credentials. Add
 
 4. Knowledge ingestion — 25 seconds
 
-   In **Knowledge**, choose **Add sources** and upload a `.txt` or `.md` file. Show the `Indexing` state change to `Ready`. Explain that this local demo keeps files in the browser; production storage and vector search are prepared as the next deployment integration.
+   In **Knowledge**, choose **Add sources** and upload a PDF, DOCX, TXT, or Markdown file. Show the `Indexing` state change to `Ready`, the active-source switch, and the Supabase sync state after signing in. Explain that the bot uses only the selected source and shows its citation.
 
    Screenshot: knowledge table after upload.
 
 5. Customer-facing widget — 40 seconds
 
-   Open **Widget**. Copy the generated script and then choose **Open demo site**. The Orbit marketing page loads a separate iframe through `public/widget.js`, proving that the widget is not just a dashboard preview. Ask it: `What does Pro include?`
+   Open **Widget**. Copy the generated script and then choose **Open test site**. The Orbit marketing page loads the small independent iframe through `public/widget.js`, proving that the widget is not just a dashboard preview. Ask it: `What does Pro include?`
 
    Screenshot: Orbit site with the widget visible and an answer in the chat.
 
@@ -53,10 +53,10 @@ Open `http://localhost:3000`. The app runs in demo mode without credentials. Add
 
 - Scope is intentionally narrow: knowledge sources, an answer-testing surface, a public widget, and a transparent billing model.
 - The product avoids ungrounded claims: answers display their knowledge source, and the server prompt instructs the model not to guess.
-- The widget loader works independently of the application shell and can be tested at `/demo.html`.
+- The compact widget loader works independently of the application shell and can be tested at `/demo.html`.
 - The billing screen is deliberately labelled as a mock flow, satisfying the assignment without pretending to take payment.
 - `npm run lint` and `npm run build` pass before each release commit.
 
-## Live AI setup
+## Live Gemini setup
 
-Copy `.env.example` to `.env.local` and set `OPENAI_API_KEY`. Helpwise then uses the server-only `/api/chat` route and the Responses API. The key is not exposed to browser code, never belongs in Git, and source summaries are sent to OpenAI only when someone submits a chat question while live AI is configured.
+Copy `.env.example` to `.env.local` and set `GEMINI_API_KEY`. Helpwise then uses Gemini only from the server-side `/api/chat` route. The key is not exposed to browser code, never belongs in Git, and the selected source is sent only when someone submits a chat question.

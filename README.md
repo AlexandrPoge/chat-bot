@@ -14,6 +14,18 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 - An embeddable web widget
 - A mock billing flow with plan-based feature gates
 
+## Assignment coverage
+
+| Requirement | Where to verify it |
+| --- | --- |
+| Descriptive landing page and pricing | `/` — feature story, Starter/Pro pricing, and clear CTAs |
+| Upload docs and turn them into a bot | `/dashboard` → **Knowledge** — PDF, DOCX, TXT, and Markdown extraction, active-source selector, and citations |
+| ChatGPT-like in-app chat | `/dashboard` → **Conversations** — Test AI and Gemini-backed source-grounded answers |
+| Embeddable customer widget | `/dashboard` → **Widget** → **Open test site** or `/demo.html` — a compact widget floats on a separate marketing page |
+| Pricing and billing | Dashboard **Upgrade to Pro** — transparent Stripe-style test-card flow; no money or card data is stored |
+| Supabase and authentication | `/login` — email/password, with an optional Google OAuth path when enabled in Supabase; authenticated source uploads are stored in private Storage and chunked in Postgres with a pgvector retrieval schema |
+| Presentation deliverable | [`docs/demo-guide.md`](docs/demo-guide.md) — a three-minute walkthrough and screenshot checklist |
+
 ## Stack
 
 - Next.js, TypeScript, Tailwind CSS

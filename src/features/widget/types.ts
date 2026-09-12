@@ -1,5 +1,3 @@
-export type WidgetMode = "gemini" | "test";
-
 export type WidgetMessage = {
   id: number;
   role: "user" | "assistant";
