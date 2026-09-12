@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import type { BotSettings } from "@/lib/bot-settings";
-import { readKnowledgeSnapshot, writeKnowledgeSnapshot } from "@/lib/knowledge-store";
+import { DEFAULT_KNOWLEDGE_SNAPSHOT, readKnowledgeSnapshot, writeKnowledgeSnapshot } from "@/lib/knowledge-store";
 import { cloudDocumentFromRecord, documentFromFile, documentFromSnapshot } from "../documents";
 import { accessToken, fetchCloudDocuments, uploadDocuments } from "../knowledge-api";
 import type { DashboardDocument } from "../types";
@@ -24,14 +24,24 @@ function finishSync(items: DashboardDocument[], results: { id: number; cloudId?:
 }
 
 export function useDashboardKnowledge(options: Options) {
-  const saved = readKnowledgeSnapshot();
-  const [documents, setDocuments] = useState(() => saved.sources.map(documentFromSnapshot));
-  const [activeSourceId, setActiveSourceId] = useState(() => saved.activeSourceId);
+  const [documents, setDocuments] = useState(() => DEFAULT_KNOWLEDGE_SNAPSHOT.sources.map(documentFromSnapshot));
+  const [activeSourceId, setActiveSourceId] = useState(DEFAULT_KNOWLEDGE_SNAPSHOT.activeSourceId);
+  const [restored, setRestored] = useState(false);
   const activeDocument = documents.find((item) => item.id === activeSourceId) ?? documents[0];
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const saved = readKnowledgeSnapshot();
+      setDocuments(saved.sources.map(documentFromSnapshot));
+      setActiveSourceId(saved.activeSourceId);
+      setRestored(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
     writeKnowledgeSnapshot({ activeSourceId, sources: documents.map(({ id, name, summary }) => ({ id, name, summary })) });
-  }, [activeSourceId, documents]);
+  }, [activeSourceId, documents, restored]);
   useEffect(() => {
     let cancelled = false;
     void (async () => {

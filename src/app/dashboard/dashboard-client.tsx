@@ -41,11 +41,11 @@ export default function DashboardClient() {
     saveSettings: writeBotSettings,
     settings,
   });
-  const origin = typeof window === "undefined" ? "https://app.helpwise.ai" : window.location.origin;
-  const embedCode = `<script async src="${origin}/widget.js" data-bot="orbit_7Q92"></script>`;
+  const embedCode = '<script async src="https://app.helpwise.ai/widget.js" data-bot="orbit_7Q92"></script>';
   const goTo = (section: Section) => setActive(section);
   const copyEmbedCode = async () => {
-    await navigator.clipboard?.writeText(embedCode);
+    const localCode = `<script async src="${window.location.origin}/widget.js" data-bot="orbit_7Q92"></script>`;
+    await navigator.clipboard?.writeText(localCode);
     setCopied(true);
     notify("Embed code copied");
     window.setTimeout(() => setCopied(false), 1800);
