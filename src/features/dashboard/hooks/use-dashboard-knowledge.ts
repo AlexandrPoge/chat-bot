@@ -62,6 +62,12 @@ export function useDashboardKnowledge(options: Options) {
   const chooseSource = (document: DashboardDocument) => {
     setActiveSourceId(document.id);
     options.resetChat(document);
+    const profile = document.profile;
+    if (profile && Object.keys(profile).length) {
+      options.saveSettings({ ...options.settings, ...profile });
+      options.notify(`“${document.name}” is active. Bot name and greeting updated from the file.`);
+      return;
+    }
     options.notify(`Test AI now uses “${document.name}”.`);
   };
   const removeSource = (id: number) => {
@@ -92,7 +98,8 @@ export function useDashboardKnowledge(options: Options) {
     const results = await uploadDocuments(files, additions, token);
     setDocuments((items) => finishSync(items, results));
     const failed = results.filter((result) => result.error).length;
-    options.notify(failed ? `${additions.length - failed} source(s) synced; ${failed} need a retry.` : `${additions.length} source(s) securely stored in Supabase.`);
+    const profileMessage = " Bot name and greeting were created from the file name.";
+    options.notify(failed ? `${additions.length - failed} source(s) synced; ${failed} need a retry.${profileMessage}` : `${additions.length} source(s) securely stored in Supabase.${profileMessage}`);
     event.target.value = "";
   };
   return { activeDocument, activeSourceId, addFiles, chooseSource, documents, removeSource };

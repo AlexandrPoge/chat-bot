@@ -1,4 +1,4 @@
-import { profileFromSource, type BotSettings } from "@/lib/bot-settings";
+import { profileFromDocument } from "@/lib/bot-settings";
 import { extractFileSummary } from "@/lib/extract-file-text";
 import type { KnowledgeSource } from "@/lib/test-assistant";
 import type { CloudDocument, DashboardDocument } from "./types";
@@ -9,7 +9,13 @@ export function documentType(name: string): DashboardDocument["type"] {
 }
 
 export function documentFromSnapshot(source: KnowledgeSource & { id: number }): DashboardDocument {
-  return { ...source, type: documentType(source.name), size: "Saved source", status: "Ready" };
+  return {
+    ...source,
+    type: documentType(source.name),
+    size: "Saved source",
+    status: "Ready",
+    profile: profileFromDocument(source.name, source.summary),
+  };
 }
 
 function idFromCloud(value: string) {
@@ -26,6 +32,7 @@ export function cloudDocumentFromRecord(record: CloudDocument): DashboardDocumen
     size: `${Math.max(1, Math.round(record.byte_size / 1024))} KB · Supabase`,
     status: record.processing_status === "ready" ? "Ready" : "Indexing",
     summary: record.extracted_text || "This source is stored in Supabase and is still being indexed.",
+    profile: profileFromDocument(record.filename, record.extracted_text || ""),
   };
 }
 
@@ -43,7 +50,7 @@ export async function documentFromFile(file: File, id: number): Promise<Dashboar
     size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
     status: "Indexing",
     summary,
-    profile: profileFromSource(summary) as Partial<BotSettings>,
+    profile: profileFromDocument(file.name, summary),
     cloudStatus: "Uploading",
   };
 }

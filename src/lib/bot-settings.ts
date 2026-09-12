@@ -59,3 +59,22 @@ export function profileFromSource(text: string): Partial<BotSettings> {
   if (accent && /^#[0-9A-Fa-f]{6}$/.test(accent)) profile.accent = accent;
   return profile;
 }
+
+function titleFromFileName(fileName: string) {
+  const decoded = decodeURIComponent(fileName).replace(/\.[^.]+$/, "");
+  const words = decoded.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  const titled = words.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+  return titled.slice(0, 64) || "Support assistant";
+}
+
+function welcomeFor(name: string) {
+  return /[а-яё]/i.test(name)
+    ? `Привет! Я ${name}. Спросите меня о содержании этого документа.`
+    : `Hi! I’m ${name}. Ask me anything covered in this document.`;
+}
+
+export function profileFromDocument(fileName: string, text: string): Partial<BotSettings> {
+  const explicit = profileFromSource(text);
+  const name = explicit.name ?? titleFromFileName(fileName);
+  return { ...explicit, name, welcome: explicit.welcome ?? welcomeFor(name) };
+}
