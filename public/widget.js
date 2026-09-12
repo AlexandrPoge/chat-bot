@@ -19,13 +19,12 @@
   frame.setAttribute("aria-label", "Open support chat");
   frame.style.cssText = [
     "position:fixed",
-    "right:20px",
-    "bottom:20px",
+    "right:clamp(12px, 2vw, 20px)",
+    "bottom:clamp(12px, 2vw, 20px)",
     "z-index:2147483647",
-    "width:380px",
-    "height:480px",
-    "max-width:calc(100vw - 32px)",
-    "max-height:calc(100vh - 32px)",
+    "width:min(390px, calc(100vw - 24px))",
+    "height:min(580px, calc(100dvh - 24px))",
+    "min-height:min(460px, calc(100dvh - 24px))",
     "border:0",
     "border-radius:22px",
     "background:transparent",

@@ -5,8 +5,14 @@ export async function extractFileSummary(file: File): Promise<string> {
     return compact(await file.text());
   }
 
+  if (extension === "docx") {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return compact(result.value);
+  }
+
   if (extension !== "pdf") {
-    return "The file is ready. Add a PDF, TXT, or Markdown document to make its text searchable in Test AI.";
+    return "This file type is stored, but it cannot be searched yet. Use PDF, DOCX, TXT, or Markdown for grounded answers.";
   }
 
   const pdfjs = await import("pdfjs-dist");
@@ -26,6 +32,6 @@ export async function extractFileSummary(file: File): Promise<string> {
 
 function compact(value: string) {
   const text = value.replace(/\s+/g, " ").trim();
-  if (!text) return "No selectable text was found in this file. Upload a text-based PDF, TXT, or Markdown document.";
+  if (!text) return "No selectable text was found in this file. Upload a text-based PDF, DOCX, TXT, or Markdown document.";
   return text.length > 12000 ? `${text.slice(0, 11997)}...` : text;
 }

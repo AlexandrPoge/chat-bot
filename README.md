@@ -18,8 +18,9 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 
 - Next.js, TypeScript, Tailwind CSS
 - Supabase: auth, Postgres with pgvector, and private object storage
-- Free Test AI API: unlimited local answers and PDF/TXT/Markdown text extraction, with no external API request or key
-- Optional OpenAI server route: live answers when a key is configured
+- Gemini 3.6 Flash through the server-side Interactions API for source-grounded live answers
+- Free Test AI fallback: unlimited local answers without an external API request or key
+- PDF, DOCX, TXT, and Markdown extraction; uploaded source files and extracted chunks sync to Supabase
 
 ## Getting started
 
@@ -27,7 +28,7 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 npm run dev
 ```
 
-Open http://localhost:3000 in the browser. The dashboard, widget, and `/api/chat` route work in unlimited Test AI mode without credentials or API charges. PDF, TXT, and Markdown text is extracted locally in the browser for the test search. To enable live server-side AI answers, copy `.env.example` to `.env.local` and provide an `OPENAI_API_KEY`.
+Open http://localhost:3000 in the browser. The dashboard and widget expose a `Gemini` mode for live, source-grounded replies and a free `Test AI` mode that never makes an external AI request. Copy `.env.example` to `.env.local` and add `GEMINI_API_KEY` to enable Gemini; the key is used only by `/api/chat` on the server. PDF, DOCX, TXT, and Markdown text is extracted in the browser before a signed-in upload is stored in Supabase.
 
 For persistent data, run the Supabase migration and set the Supabase environment values described in [`supabase/README.md`](supabase/README.md). Never commit real API keys or `.env.local`.
 

@@ -22,6 +22,10 @@ import {
   defaultDemoSessionSnapshot, demoSessionSnapshot, type DemoSession,
 } from "@/lib/auth-session";
 import { extractFileSummary } from "@/lib/extract-file-text";
+import {
+  DEFAULT_KNOWLEDGE_SOURCES, readKnowledgeSnapshot, writeKnowledgeSnapshot,
+} from "@/lib/knowledge-store";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getTestAnswer, type KnowledgeSource } from "@/lib/test-assistant";
 
 type Section = "overview" | "knowledge" | "conversations" | "widget" | "settings";
@@ -30,13 +34,15 @@ type ChatMode = "test" | "live";
 type Document = KnowledgeSource & {
   id: number; type: "PDF" | "DOCX" | "TXT" | "MD"; size: string;
   status: "Ready" | "Indexing"; profile?: Partial<BotSettings>;
+  cloudStatus?: "Uploading" | "Synced" | "Failed";
+  cloudId?: string;
 };
 type Message = { id: number; role: "user" | "assistant"; content: string; source?: string; followUp?: string };
 
 const documentsAtStart: Document[] = [
-  { id: 1, name: "Team collaboration guide.pdf", type: "PDF", size: "2.4 MB", status: "Ready", summary: "Project guests can view deliverables and comment. Owners invite guests from the Share menu." },
-  { id: 2, name: "Billing & plans.md", type: "MD", size: "18 KB", status: "Ready", summary: "Pro includes custom colors, domain allowlists, unlimited sources, and no Helpwise branding." },
-  { id: 3, name: "Product onboarding.docx", type: "DOCX", size: "1.1 MB", status: "Ready", summary: "New accounts create a workspace, connect a product, and invite teammates during onboarding." },
+  { ...DEFAULT_KNOWLEDGE_SOURCES[0], type: "PDF", size: "2.4 MB", status: "Ready" },
+  { ...DEFAULT_KNOWLEDGE_SOURCES[1], type: "MD", size: "18 KB", status: "Ready" },
+  { ...DEFAULT_KNOWLEDGE_SOURCES[2], type: "DOCX", size: "1.1 MB", status: "Ready" },
 ];
 const navigation: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard }, { id: "knowledge", label: "Knowledge", icon: Database },
@@ -65,14 +71,76 @@ function StatusPill({ status }: { status: Document["status"] }) {
   const ready = status === "Ready";
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${ready ? "bg-[#edf8e5] text-[#609437]" : "bg-[#fff6de] text-[#9f6d1f]"}`}><i className={`h-1.5 w-1.5 rounded-full ${ready ? "bg-[#77b346]" : "bg-[#e2a13a]"}`} />{status}</span>;
 }
+function documentFromSnapshot(source: KnowledgeSource & { id: number }): Document {
+  const extension = source.name.split(".").pop()?.toUpperCase();
+  const type: Document["type"] = extension === "PDF" || extension === "DOCX" || extension === "TXT" ? extension : "MD";
+  return { ...source, type, size: "Saved source", status: "Ready" };
+}
+function idFromCloud(value: string) {
+  let hash = 0;
+  for (const character of value) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+  return Math.abs(hash) + 10_000;
+}
+function cloudDocumentFromRecord(record: { id: string; filename: string; byte_size: number; processing_status: string; extracted_text: string | null }): Document {
+  const extension = record.filename.split(".").pop()?.toUpperCase();
+  const type: Document["type"] = extension === "PDF" || extension === "DOCX" || extension === "TXT" ? extension : "MD";
+  return {
+    id: idFromCloud(record.id), cloudId: record.id, cloudStatus: "Synced", name: record.filename, type,
+    size: `${Math.max(1, Math.round(record.byte_size / 1024))} KB · Supabase`, status: record.processing_status === "ready" ? "Ready" : "Indexing",
+    summary: record.extracted_text || "This source is stored in Supabase and is still being indexed.",
+  };
+}
 function BotPreview({ settings }: { settings: BotSettings }) {
   return <div className="rounded-[1.25rem] border border-[#dde5da] bg-white p-4 shadow-[0_18px_34px_-26px_rgba(33,50,31,.45)]"><div className="flex items-center gap-2.5"><span className="grid h-10 w-10 place-items-center overflow-hidden rounded-xl" style={{ backgroundColor: settings.accent }}><Image alt="Support bot mascot" className="scale-[1.65] object-contain" height={40} priority src="/mascot/orbit-support-mascot.png" width={40} /></span><div className="min-w-0"><p className="truncate text-xs font-bold text-[#354135]">{settings.name}</p><p className="mt-0.5 text-[10px] text-[#8c9689]">Usually replies instantly</p></div><span className="ml-auto text-[#9aa49a]">×</span></div><p className="mt-5 rounded-xl bg-[#f3f6ef] p-3 text-xs leading-5 text-[#586458]">{settings.welcome}</p><div className="mt-3 flex items-center gap-2 rounded-xl border border-[#e1e7de] px-3 py-2.5 text-[11px] text-[#a3aba1]">Ask a question…<span className="ml-auto grid h-5 w-5 place-items-center rounded-md text-[#405535]" style={{ backgroundColor: settings.accent }}><Send size={11} /></span></div><p className="mt-3 text-center text-[9px] text-[#a4ada2]">Powered by Helpwise</p></div>;
 }
 function ChatPanel({ activeSourceName, botName, messages, isAnswering, onAsk }: { activeSourceName: string; botName: string; messages: Message[]; isAnswering: boolean; onAsk: (question: string, mode: ChatMode) => void }) {
-  const [draft, setDraft] = useState(""); const [mode, setMode] = useState<ChatMode>("test"); const listRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }); }, [messages.length, isAnswering]);
-  const submit = (event: FormEvent) => { event.preventDefault(); const question = draft.trim(); if (!question || isAnswering) return; onAsk(question, mode); setDraft(""); };
-  return <section className="flex h-[440px] min-h-0 flex-col overflow-hidden rounded-2xl border border-[#e0e6dc] bg-white shadow-[0_18px_40px_-38px_rgba(32,45,31,.6)] sm:h-[470px]"><header className="shrink-0 border-b border-[#e7ebe4] px-4 py-3.5 sm:px-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold tracking-[-.03em]">Test your bot</h2><p className="mt-0.5 flex max-w-[280px] items-center gap-1.5 truncate text-xs text-[#71806e]"><FileText size={12} className="shrink-0 text-[#6d9b40]" />Testing: {activeSourceName}</p></div><div className="flex rounded-lg bg-[#f1f5ee] p-1 text-[11px] font-bold"><button aria-pressed={mode === "test"} className={`rounded-md px-2.5 py-1.5 transition ${mode === "test" ? "bg-white text-[#4d7432] shadow-sm" : "text-[#899387] hover:bg-white/60"}`} onClick={() => setMode("test")} type="button">✦ Test AI · free</button><button aria-pressed={mode === "live"} className={`rounded-md px-2.5 py-1.5 transition ${mode === "live" ? "bg-white text-[#4d7432] shadow-sm" : "text-[#899387] hover:bg-white/60"}`} onClick={() => setMode("live")} type="button">Live API</button></div></div></header><div className="min-h-0 flex-1 overflow-y-auto bg-[#fbfcfa] p-4 sm:p-5" ref={listRef}><div className="space-y-4">{messages.map((message) => <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`} key={message.id}><article className={`max-w-[87%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${message.role === "user" ? "rounded-tr-md bg-[#202823] text-white" : "rounded-tl-md border border-[#e0e7dd] bg-white text-[#4d584d]"}`}><p>{message.content}</p>{message.source && <p className="mt-2 flex items-center gap-1.5 border-t border-[#e4ecdf] pt-2 text-[11px] font-bold text-[#668f3d]"><FileText size={12} />{message.source}</p>}{message.followUp && <p className="mt-2 text-xs text-[#6f7c6f]">{message.followUp}</p>}</article></div>)}{isAnswering && <div className="flex w-fit items-center gap-2 rounded-2xl rounded-tl-md border border-[#e1e7dd] bg-white px-4 py-3 text-sm text-[#839083]"><LoaderCircle className="animate-spin" size={15} />{botName} is thinking…</div>}</div></div><form className="m-3 flex shrink-0 gap-2 rounded-xl border border-[#dce4d8] bg-white p-2 shadow-sm transition focus-within:border-[#8bb660] focus-within:shadow-[0_0_0_4px_rgba(139,182,96,.14)] sm:m-4" onSubmit={submit}><input aria-label="Ask your bot a question" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-[#a4aca2]" onChange={(event) => setDraft(event.target.value)} placeholder="Ask about your product…" value={draft} /><button aria-label="Send question" className="grid h-9 w-9 place-items-center rounded-lg bg-[#d9fb97] text-[#33422e] transition hover:scale-105 disabled:opacity-50" disabled={!draft.trim() || isAnswering} type="submit"><Send size={15} strokeWidth={2.6} /></button></form><p className="-mt-1 mb-3 shrink-0 px-4 text-[10px] text-[#8d978b] sm:mb-4 sm:px-5">{mode === "test" ? "Unlimited Test AI: local, free, and never calls an external API." : "Live API uses your server-side OpenAI key if configured."}</p></section>;
+  const [draft, setDraft] = useState("");
+  const [mode, setMode] = useState<ChatMode>("test");
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages.length, isAnswering]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const question = draft.trim();
+    if (!question || isAnswering) return;
+    onAsk(question, mode);
+    setDraft("");
+  };
+
+  return <section className="flex h-[min(620px,calc(100dvh-10rem))] min-h-[410px] flex-col overflow-hidden rounded-[1.25rem] border border-[#dfe7da] bg-white shadow-[0_22px_45px_-38px_rgba(32,45,31,.78)]">
+    <header className="shrink-0 border-b border-[#e7ebe4] bg-white px-4 py-3.5 sm:px-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-[#edf7e6] text-[#5d9236]"><ShieldCheck size={14} /></span><h2 className="font-semibold tracking-[-.03em]">Customer-ready preview</h2></div>
+          <p className="mt-1 flex max-w-full items-center gap-1.5 truncate text-xs text-[#71806e]"><FileText size={12} className="shrink-0 text-[#6d9b40]" />Active source: {activeSourceName}</p>
+        </div>
+        <div className="flex w-fit rounded-lg bg-[#f1f5ee] p-1 text-[11px] font-bold">
+          <button aria-pressed={mode === "test"} className={`rounded-md px-2.5 py-1.5 transition-all duration-200 ${mode === "test" ? "bg-white text-[#4d7432] shadow-sm" : "text-[#899387] hover:bg-white/70"}`} onClick={() => setMode("test")} type="button">✦ Test AI</button>
+          <button aria-pressed={mode === "live"} className={`rounded-md px-2.5 py-1.5 transition-all duration-200 ${mode === "live" ? "bg-white text-[#4d7432] shadow-sm" : "text-[#899387] hover:bg-white/70"}`} onClick={() => setMode("live")} type="button">Gemini AI</button>
+        </div>
+      </div>
+    </header>
+    <div aria-live="polite" className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#fbfcfa] p-3.5 [scrollbar-gutter:stable] sm:p-5" ref={listRef}>
+      <div className="space-y-3.5">
+        {messages.map((message) => <div className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`} key={message.id}>
+          <article className={`max-w-[92%] break-words rounded-2xl px-3.5 py-3 text-sm leading-6 shadow-sm sm:max-w-[84%] sm:px-4 ${message.role === "user" ? "rounded-tr-md bg-[#202823] text-white" : "rounded-tl-md border border-[#e0e7dd] bg-white text-[#4d584d]"}`}>
+            <p>{message.content}</p>
+            {message.source && <p className="mt-2 flex items-center gap-1.5 border-t border-[#e4ecdf] pt-2 text-[11px] font-bold text-[#668f3d]"><FileText size={12} />{message.source}</p>}
+            {message.followUp && <p className="mt-2 text-xs leading-5 text-[#6f7c6f]">{message.followUp}</p>}
+          </article>
+        </div>)}
+        {isAnswering && <div className="flex w-fit items-center gap-2 rounded-2xl rounded-tl-md border border-[#e1e7dd] bg-white px-4 py-3 text-sm text-[#839083]"><LoaderCircle className="animate-spin" size={15} />{botName} is thinking…</div>}
+      </div>
+    </div>
+    <form className="m-3 flex shrink-0 gap-2 rounded-xl border border-[#dce4d8] bg-white p-1.5 shadow-sm transition focus-within:border-[#8bb660] focus-within:shadow-[0_0_0_4px_rgba(139,182,96,.14)] sm:m-4" onSubmit={submit}>
+      <input aria-label="Ask your bot a question" className="min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-[#9ca69a]" onChange={(event) => setDraft(event.target.value)} placeholder="Ask a customer question…" value={draft} />
+      <button aria-label="Send question" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#d9fb97] text-[#33422e] transition-all duration-200 hover:scale-105 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100" disabled={!draft.trim() || isAnswering} type="submit"><Send size={16} strokeWidth={2.6} /></button>
+    </form>
+    <p className="-mt-1 mb-3 shrink-0 px-4 text-center text-[10px] text-[#8d978b] sm:mb-4 sm:px-5">{mode === "test" ? "Free Test AI · answers stay grounded in the active source" : "Gemini answers from the active source · key stays server-side"}</p>
+  </section>;
 }
 function TestCheckout({ onClose, onPaid }: { onClose: () => void; onPaid: () => void }) {
   const [card, setCard] = useState(""); const [expiry, setExpiry] = useState(""); const [cvc, setCvc] = useState(""); const [name, setName] = useState(""); const [error, setError] = useState(""); const [processing, setProcessing] = useState(false);
@@ -86,15 +154,89 @@ function SettingsEditor({ settings, plan, documentCount, onSave, onReset, onUpgr
 }
 
 export default function DashboardClient() {
-  const [active, setActive] = useState<Section>("overview"); const [documents, setDocuments] = useState(documentsAtStart); const [activeSourceId, setActiveSourceId] = useState(1); const [messages, setMessages] = useState<Message[]>([{ id: 1, role: "assistant", content: "Hi Alex — I’m ready to help. Ask a real customer question and I’ll keep the answer natural and useful.", source: documentsAtStart[0].name }]); const [isAnswering, setIsAnswering] = useState(false); const [plan, setPlan] = useState<Plan>("Starter"); const [planChoice, setPlanChoice] = useState<Plan>("Pro"); const [billingStep, setBillingStep] = useState<"plans" | "checkout" | null>(null); const [copied, setCopied] = useState(false); const [toast, setToast] = useState(""); const [profileOpen, setProfileOpen] = useState(false);
+  const initialKnowledge = readKnowledgeSnapshot();
+  const [active, setActive] = useState<Section>("overview"); const [documents, setDocuments] = useState<Document[]>(() => initialKnowledge.sources.map(documentFromSnapshot)); const [activeSourceId, setActiveSourceId] = useState(() => initialKnowledge.activeSourceId); const [messages, setMessages] = useState<Message[]>([{ id: 1, role: "assistant", content: "Hi — I’ll answer from the active document and show the source on every reply. What would you like to know?", source: documentsAtStart[0].name }]); const [isAnswering, setIsAnswering] = useState(false); const [plan, setPlan] = useState<Plan>("Starter"); const [planChoice, setPlanChoice] = useState<Plan>("Pro"); const [billingStep, setBillingStep] = useState<"plans" | "checkout" | null>(null); const [copied, setCopied] = useState(false); const [toast, setToast] = useState(""); const [profileOpen, setProfileOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null); const scrollRef = useRef<HTMLElement>(null); const settings = useSavedSettings(); const session = useSession(); const origin = typeof window === "undefined" ? "https://app.helpwise.ai" : window.location.origin; const activeDocument = documents.find((document) => document.id === activeSourceId) ?? documents[0]; const sourceData = activeDocument ? [{ name: activeDocument.name, summary: activeDocument.summary }] : [];
+  useEffect(() => {
+    writeKnowledgeSnapshot({ activeSourceId, sources: documents.map(({ id, name, summary }) => ({ id, name, summary })) });
+  }, [activeSourceId, documents]);
+  useEffect(() => {
+    let cancelled = false;
+    const restoreCloudSources = async () => {
+      const client = getSupabaseBrowserClient();
+      const { data: sessionData } = client ? await client.auth.getSession() : { data: { session: null } };
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      try {
+        const response = await fetch("/api/knowledge", { headers: { Authorization: `Bearer ${token}` } });
+        const body = await response.json() as { documents?: { id: string; filename: string; byte_size: number; processing_status: string; extracted_text: string | null }[] };
+        if (!response.ok || !body.documents || cancelled) return;
+        const restored = body.documents.map(cloudDocumentFromRecord);
+        setDocuments((items) => [...restored.filter((source) => !items.some((item) => item.cloudId === source.cloudId || item.name === source.name)), ...items]);
+      } catch {
+        // Local Test AI still works when the dashboard cannot reach Supabase.
+      }
+    };
+    void restoreCloudSources();
+    return () => { cancelled = true; };
+  }, []);
   const notify = (value: string) => { setToast(value); window.setTimeout(() => setToast(""), 3200); };
   const goTo = (next: Section) => { setActive(next); window.requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })); };
-  const addFiles = async (event: ChangeEvent<HTMLInputElement>) => { const files = Array.from(event.target.files ?? []); const additions = await Promise.all(files.map(async (file, index): Promise<Document> => { const ext = file.name.split(".").pop()?.toUpperCase(); const type: Document["type"] = ext === "PDF" || ext === "DOCX" || ext === "TXT" ? ext : "MD"; let summary = ""; try { summary = await extractFileSummary(file); } catch { summary = "This file could not be read in the browser. Try a text-based PDF, TXT, or Markdown document."; } return { id: Date.now() + index, name: file.name, type, size: `${Math.max(1, Math.round(file.size / 1024))} KB`, status: "Indexing", summary, profile: profileFromSource(summary) }; })); if (!additions.length) return; setDocuments((items) => [...additions, ...items]); setActiveSourceId(additions[0].id); const profile = additions.find((item) => Object.keys(item.profile ?? {}).length)?.profile; if (profile) writeBotSettings({ ...settings, ...profile }); notify(profile ? "Source added, selected for Test AI, and its explicit bot profile was applied." : "Source added and selected for Test AI."); window.setTimeout(() => setDocuments((items) => items.map((item) => additions.some((addition) => addition.id === item.id) ? { ...item, status: "Ready" } : item)), 800); event.target.value = ""; };
+  const startFreshConversation = (document?: Document) => setMessages([{ id: 1, role: "assistant", content: document ? `I’m now using “${document.name}”. Ask a customer question and I’ll keep the answer clear and grounded.` : "Add a source, then I’ll be ready to answer from it.", source: document?.name }]);
+  const addFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    const additions = await Promise.all(files.map(async (file, index): Promise<Document> => {
+      const ext = file.name.split(".").pop()?.toUpperCase();
+      const type: Document["type"] = ext === "PDF" || ext === "DOCX" || ext === "TXT" ? ext : "MD";
+      let summary = "";
+      try { summary = await extractFileSummary(file); } catch { summary = "This file could not be read in the browser. Try a text-based PDF, TXT, or Markdown document."; }
+      return { id: Date.now() + index, name: file.name, type, size: `${Math.max(1, Math.round(file.size / 1024))} KB`, status: "Indexing", summary, profile: profileFromSource(summary), cloudStatus: "Uploading" };
+    }));
+    if (!additions.length) return;
+    setDocuments((items) => [...additions, ...items]);
+    setActiveSourceId(additions[0].id);
+    startFreshConversation(additions[0]);
+    const profile = additions.find((item) => Object.keys(item.profile ?? {}).length)?.profile;
+    if (profile) writeBotSettings({ ...settings, ...profile });
+    notify("Reading the source and securely syncing it to Supabase…");
+
+    const client = getSupabaseBrowserClient();
+    const { data: sessionData } = client ? await client.auth.getSession() : { data: { session: null } };
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      setDocuments((items) => items.map((item) => additions.some((addition) => addition.id === item.id) ? { ...item, status: "Ready", cloudStatus: "Failed" } : item));
+      notify("The source is ready for Test AI, but cloud sync needs an active Supabase sign-in. Log in again, then retry the upload.");
+      event.target.value = "";
+      return;
+    }
+
+    const results = await Promise.all(additions.map(async (addition, index) => {
+      const form = new FormData();
+      form.set("file", files[index]);
+      form.set("extractedText", addition.summary);
+      try {
+        const response = await fetch("/api/knowledge", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+        const body = await response.json() as { id?: string; error?: string };
+        return response.ok && body.id ? { id: addition.id, cloudId: body.id } : { id: addition.id, error: body.error ?? "Cloud upload failed." };
+      } catch {
+        return { id: addition.id, error: "Could not reach Supabase. Check the network and retry." };
+      }
+    }));
+    const failed = results.filter((result) => "error" in result);
+    setDocuments((items) => items.map((item) => {
+      const result = results.find((candidate) => candidate.id === item.id);
+      if (!result) return item;
+      return "cloudId" in result
+        ? { ...item, status: "Ready", size: `${item.size.replace(" · Supabase", "")} · Supabase`, cloudStatus: "Synced", cloudId: result.cloudId }
+        : { ...item, status: "Ready", size: `${item.size.replace(" · needs retry", "")} · needs retry`, cloudStatus: "Failed" };
+    }));
+    notify(failed.length ? `${additions.length - failed.length} source(s) synced. ${failed.length} need a retry.` : `${additions.length} source${additions.length === 1 ? "" : "s"} securely stored in Supabase and ready for Test AI.`);
+    event.target.value = "";
+  };
   const appendTest = (question: string) => setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", ...getTestAnswer(question, sourceData, messages.length) }]);
   const askBot = async (question: string, mode: ChatMode) => { setMessages((items) => [...items, { id: Date.now(), role: "user", content: question }]); setIsAnswering(true); if (mode === "test") { window.setTimeout(() => { appendTest(question); setIsAnswering(false); }, 420); return; } try { const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, sources: sourceData }) }); const body = (await response.json()) as { answer?: string; source?: string; mode?: "test" | "live" }; if (response.ok && body.answer?.trim()) { setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", content: body.answer ?? "", source: body.source ?? activeDocument?.name }]); if (body.mode === "test") notify("No OpenAI key is configured, so free Test AI answered through /api/chat."); } else { appendTest(question); notify("Live API is unavailable, so Helpwise used Test AI."); } } catch { appendTest(question); notify("Test AI answered because the live connection is unavailable."); } finally { setIsAnswering(false); } };
-  const chooseSource = (document: Document) => { setActiveSourceId(document.id); notify(`Test AI now uses “${document.name}”.`); };
-  const removeSource = (id: number) => { const left = documents.filter((document) => document.id !== id); setDocuments(left); if (id === activeSourceId) setActiveSourceId(left[0]?.id ?? 0); notify("Source removed"); };
+  const chooseSource = (document: Document) => { setActiveSourceId(document.id); startFreshConversation(document); notify(`Test AI now uses “${document.name}”.`); };
+  const removeSource = (id: number) => { const left = documents.filter((document) => document.id !== id); setDocuments(left); if (id === activeSourceId) { setActiveSourceId(left[0]?.id ?? 0); startFreshConversation(left[0]); } notify("Source removed"); };
   const chat = <ChatPanel activeSourceName={activeDocument?.name ?? "No source selected"} botName={settings.name} isAnswering={isAnswering} messages={messages} onAsk={askBot} />;
   const code = `<script async src="${origin}/widget.js" data-bot="orbit_7Q92"></script>`;
   const copy = async () => { await navigator.clipboard?.writeText(code); setCopied(true); notify("Embed code copied"); window.setTimeout(() => setCopied(false), 1800); };
