@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { clearDemoSession } from "@/lib/auth-session";
 import { DEFAULT_BOT_SETTINGS, writeBotSettings } from "@/lib/bot-settings";
 import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
+import { ConversationsPage } from "@/features/dashboard/components/conversations-page";
 import { KnowledgePage } from "@/features/dashboard/components/knowledge-page";
 import { OverviewPage } from "@/features/dashboard/components/overview-page";
 import { PlanDialog } from "@/features/dashboard/components/plan-dialog";
@@ -58,8 +59,9 @@ export default function DashboardClient() {
     }
     setBillingStep("checkout");
   };
-  const content = active === "knowledge" ? <KnowledgePage activeDocument={knowledge.activeDocument} activeSourceId={knowledge.activeSourceId} documents={knowledge.documents} fileInput={fileInput} onAddFiles={knowledge.addFiles} onChoose={knowledge.chooseSource} onRemove={knowledge.removeSource} />
-    : active === "widget" ? <WidgetPage activeDocument={knowledge.activeDocument} code={embedCode} copied={copied} onCopy={copyEmbedCode} settings={settings} />
+  const content = active === "conversations" ? <ConversationsPage activeDocument={knowledge.activeDocument} isAnswering={chat.isAnswering} messages={chat.messages} onAsk={(question, mode) => chat.askBot(question, mode, knowledge.activeDocument)} settings={settings} />
+    : active === "knowledge" ? <KnowledgePage activeDocument={knowledge.activeDocument} activeSourceId={knowledge.activeSourceId} documents={knowledge.documents} fileInput={fileInput} onAddFiles={knowledge.addFiles} onChoose={knowledge.chooseSource} onRemove={knowledge.removeSource} />
+    : active === "widget" ? <WidgetPage activeDocument={knowledge.activeDocument} code={embedCode} copied={copied} onCopy={copyEmbedCode} />
       : active === "settings" ? <SettingsEditor documentCount={knowledge.documents.length} key={JSON.stringify(settings)} onReset={() => { writeBotSettings(DEFAULT_BOT_SETTINGS); notify("Default settings restored."); }} onSave={(value) => { writeBotSettings(value); notify("Settings saved and widget updated."); }} onUpgrade={() => setBillingStep("plans")} plan={plan} settings={settings} />
         : <OverviewPage activeDocument={knowledge.activeDocument} documents={knowledge.documents} isAnswering={chat.isAnswering} messages={chat.messages} onAsk={(question, mode) => chat.askBot(question, mode, knowledge.activeDocument)} onGoTo={goTo} settings={settings} userName={session?.email.split("@")[0] || "Alex"} />;
   return <><DashboardShell active={active} onGoTo={goTo} onLogout={() => { clearDemoSession(); window.location.assign("/"); }} onProfileToggle={() => setProfileOpen((value) => !value)} onUpgrade={() => setBillingStep("plans")} plan={plan} profileOpen={profileOpen} session={session} toast={toast}>{content}</DashboardShell>{billingStep === "plans" && <PlanDialog choice={choice} onChoose={setChoice} onClose={() => setBillingStep(null)} onContinue={activatePlan} />}{billingStep === "checkout" && <TestCheckout onClose={() => setBillingStep("plans")} onPaid={() => { setPlan("Pro"); setBillingStep(null); notify("Pro is active. This was a test payment — no card was charged."); }} />}</>;

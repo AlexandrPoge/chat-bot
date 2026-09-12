@@ -33,7 +33,15 @@ export default function LoginPage() {
         ? await supabase.auth.signUp({ email: normalizedEmail, password, options: { emailRedirectTo: `${window.location.origin}/dashboard` } })
         : await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       if (result.error) {
-        setError(result.error.message);
+        const alreadyRegistered = mode === "register" && /already|registered|exists/i.test(result.error.message);
+        setError(alreadyRegistered ? "An account already exists for this email. Please log in instead." : result.error.message);
+        if (alreadyRegistered) setMode("login");
+        setPending(false);
+        return;
+      }
+      if (mode === "register" && result.data.user?.identities?.length === 0) {
+        setError("An account already exists for this email. Please log in instead.");
+        setMode("login");
         setPending(false);
         return;
       }
