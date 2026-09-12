@@ -2,7 +2,7 @@ import { type ChangeEvent, useEffect, useState } from "react";
 import type { BotSettings } from "@/lib/bot-settings";
 import { DEFAULT_KNOWLEDGE_SNAPSHOT, readKnowledgeSnapshot, writeKnowledgeSnapshot } from "@/lib/knowledge-store";
 import { cloudDocumentFromRecord, documentFromFile, documentFromSnapshot } from "../documents";
-import { accessToken, fetchCloudDocuments, uploadDocuments } from "../knowledge-api";
+import { accessToken, deleteCloudDocument, fetchCloudDocuments, uploadDocuments } from "../knowledge-api";
 import type { DashboardDocument } from "../types";
 
 type Options = {
@@ -40,7 +40,7 @@ export function useDashboardKnowledge(options: Options) {
   }, []);
   useEffect(() => {
     if (!restored) return;
-    writeKnowledgeSnapshot({ activeSourceId, sources: documents.map(({ id, name, summary }) => ({ id, name, summary })) });
+    writeKnowledgeSnapshot({ activeSourceId, sources: documents.map(({ cloudId, id, name, summary }) => ({ cloudId, id, name, summary })) });
   }, [activeSourceId, documents, restored]);
   useEffect(() => {
     let cancelled = false;
@@ -70,14 +70,23 @@ export function useDashboardKnowledge(options: Options) {
     }
     options.notify(`Test AI now uses “${document.name}”.`);
   };
-  const removeSource = (id: number) => {
+  const removeSource = async (id: number) => {
+    const source = documents.find((document) => document.id === id);
+    if (source?.cloudId) {
+      const token = await accessToken();
+      const error = token ? await deleteCloudDocument(source.cloudId, token) : "Sign in again before removing this cloud source.";
+      if (error) {
+        options.notify(error);
+        return;
+      }
+    }
     const remaining = documents.filter((document) => document.id !== id);
     setDocuments(remaining);
     if (id === activeSourceId) {
       setActiveSourceId(remaining[0]?.id ?? 0);
       options.resetChat(remaining[0]);
     }
-    options.notify("Source removed");
+    options.notify(source?.cloudId ? "Source removed from Supabase and this bot." : "Source removed");
   };
   const addFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);

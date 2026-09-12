@@ -1,4 +1,5 @@
 export type KnowledgeSource = {
+  cloudId?: string;
   name: string;
   summary: string;
 };

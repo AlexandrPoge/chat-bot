@@ -11,6 +11,7 @@ export function documentType(name: string): DashboardDocument["type"] {
 export function documentFromSnapshot(source: KnowledgeSource & { id: number }): DashboardDocument {
   return {
     ...source,
+    cloudStatus: source.cloudId ? "Synced" : undefined,
     type: documentType(source.name),
     size: "Saved source",
     status: "Ready",

@@ -1,4 +1,5 @@
 export type StoredKnowledgeSource = {
+  cloudId?: string;
   id: number;
   name: string;
   summary: string;
@@ -68,7 +69,7 @@ export function writeKnowledgeSnapshot(snapshot: KnowledgeSnapshot) {
     activeSourceId: snapshot.sources.some((source) => source.id === snapshot.activeSourceId)
       ? snapshot.activeSourceId
       : snapshot.sources[0]?.id ?? 0,
-    sources: snapshot.sources.map(({ id, name, summary }) => ({ id, name, summary })),
+    sources: snapshot.sources.map(({ cloudId, id, name, summary }) => ({ cloudId, id, name, summary })),
   };
   window.localStorage.setItem(KNOWLEDGE_STORAGE_KEY, JSON.stringify(safeSnapshot));
   window.dispatchEvent(new Event(KNOWLEDGE_CHANGE_EVENT));

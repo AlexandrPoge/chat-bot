@@ -1,8 +1,10 @@
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
+import { retrieveRelevantChunks } from "@/lib/knowledge/search";
 import { getTestAnswer } from "@/lib/test-assistant";
 
 type Source = {
+  cloudId?: string;
   name: string;
   summary: string;
 };
@@ -18,6 +20,7 @@ function toSources(value: unknown): Source[] {
   return value
     .filter((source): source is Record<string, unknown> => typeof source === "object" && source !== null)
     .map((source) => ({
+      cloudId: typeof source.cloudId === "string" ? source.cloudId : undefined,
       name: typeof source.name === "string" ? source.name : "Untitled source",
       summary: typeof source.summary === "string" ? source.summary : "",
     }))
@@ -57,11 +60,12 @@ export async function POST(request: Request) {
     });
   }
 
-  const sourceContext = sources
-    .map((source) => `SOURCE: ${source.name}\n${source.summary.slice(0, 8_000)}`)
-    .join("\n\n---\n\n");
-
   try {
+    const retrieved = await retrieveRelevantChunks(question, sources.flatMap((source) => source.cloudId ? [source.cloudId] : []));
+    const sourceContext = retrieved.length
+      ? retrieved.map((chunk) => `SOURCE: ${chunk.filename}\n${chunk.content}`).join("\n\n---\n\n")
+      : sources.map((source) => `SOURCE: ${source.name}\n${source.summary.slice(0, 8_000)}`).join("\n\n---\n\n");
+    const sourceName = retrieved[0]?.filename ?? sources[0]?.name;
     let answer = "";
     if (geminiApiKey) {
       const client = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -92,7 +96,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "The model returned no text." }, { status: 502 });
     }
 
-    return Response.json({ answer, source: sources[0]?.name, mode: "live", provider: geminiApiKey ? "gemini" : "openai" });
+    return Response.json({ answer, source: sourceName, mode: "live", provider: geminiApiKey ? "gemini" : "openai", retrieval: retrieved.length ? "pgvector" : "source" });
   } catch (error) {
     console.error("Helpwise AI response failed", error);
     return Response.json({ error: "The AI service could not answer right now." }, { status: 502 });

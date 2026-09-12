@@ -1,4 +1,5 @@
 import type { KnowledgeContext } from "./context";
+import { embedKnowledgeChunks } from "@/lib/ai/embeddings";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
 export const ACCEPTED_TYPES = new Set([
@@ -40,7 +41,7 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
     mime_type: file.type || null,
     storage_path: storagePath,
     byte_size: file.size,
-    processing_status: "ready",
+    processing_status: "processing",
     extracted_text: extractedText || null,
   });
   if (documentError) {
@@ -48,16 +49,28 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
     return { error: `Document record failed: ${documentError.message}` };
   }
 
-  const chunks = splitIntoChunks(extractedText).map((content, chunkIndex) => ({
+  const contents = splitIntoChunks(extractedText);
+  let embeddings: number[][] = [];
+  try {
+    embeddings = await embedKnowledgeChunks(contents);
+  } catch (error) {
+    console.error("Knowledge embedding failed", error);
+  }
+  const chunks = contents.map((content, chunkIndex) => ({
     document_id: documentId,
     bot_id: context.botId,
     content,
+    embedding: embeddings[chunkIndex] ?? null,
     chunk_index: chunkIndex,
   }));
-  if (!chunks.length) return { id: documentId, storagePath };
+  if (!chunks.length) {
+    await context.supabase.from("documents").update({ processing_status: "ready" }).eq("id", documentId);
+    return { id: documentId, indexed: false, storagePath };
+  }
 
   const { error: chunkError } = await context.supabase.from("document_chunks").insert(chunks);
-  if (!chunkError) return { id: documentId, storagePath };
-  await context.supabase.from("documents").update({ processing_status: "failed" }).eq("id", documentId);
-  return { error: `File saved, but text indexing failed: ${chunkError.message}` };
+  await context.supabase.from("documents").update({ processing_status: chunkError ? "failed" : "ready" }).eq("id", documentId);
+  return chunkError
+    ? { error: `File saved, but text indexing failed: ${chunkError.message}` }
+    : { id: documentId, indexed: embeddings.length === chunks.length, storagePath };
 }

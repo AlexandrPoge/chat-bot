@@ -13,6 +13,15 @@ export async function fetchCloudDocuments(token: string): Promise<CloudDocument[
   return response.ok && body.documents ? body.documents : [];
 }
 
+export async function deleteCloudDocument(id: string, token: string) {
+  const response = await fetch(`/api/knowledge?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await response.json() as { error?: string };
+  return response.ok ? undefined : body.error ?? "Could not remove the cloud source.";
+}
+
 type UploadResult = { id: number; cloudId?: string; error?: string };
 
 export async function uploadDocuments(

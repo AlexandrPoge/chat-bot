@@ -51,3 +51,23 @@ export async function POST(request: Request) {
     ? Response.json(result, { status: 502 })
     : Response.json({ ...result, status: "ready" }, { status: 201 });
 }
+
+export async function DELETE(request: Request) {
+  const context = await contextFor(request);
+  if (!context) return unauthorized("Sign in before deleting a source.");
+  if ("error" in context) return Response.json({ error: context.error }, { status: context.status });
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return Response.json({ error: "A document id is required." }, { status: 400 });
+  const { data, error } = await context.supabase
+    .from("documents")
+    .select("storage_path")
+    .eq("id", id)
+    .eq("bot_id", context.botId)
+    .maybeSingle<{ storage_path: string }>();
+  if (error) return Response.json({ error: error.message }, { status: 502 });
+  if (!data) return Response.json({ error: "Source not found." }, { status: 404 });
+  const { error: storageError } = await context.supabase.storage.from("knowledge-files").remove([data.storage_path]);
+  if (storageError) return Response.json({ error: storageError.message }, { status: 502 });
+  const { error: deleteError } = await context.supabase.from("documents").delete().eq("id", id).eq("bot_id", context.botId);
+  return deleteError ? Response.json({ error: deleteError.message }, { status: 502 }) : Response.json({ deleted: true });
+}
