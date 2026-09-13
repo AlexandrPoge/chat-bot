@@ -29,10 +29,13 @@ export function writeDemoSession(email: string) {
   window.dispatchEvent(new Event(DEMO_SESSION_CHANGE_EVENT));
 }
 
-export function clearDemoSession() {
-  void getSupabaseBrowserClient()?.auth.signOut();
-  window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
-  window.dispatchEvent(new Event(DEMO_SESSION_CHANGE_EVENT));
+export async function clearDemoSession() {
+  try {
+    await getSupabaseBrowserClient()?.auth.signOut();
+  } finally {
+    window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+    window.dispatchEvent(new Event(DEMO_SESSION_CHANGE_EVENT));
+  }
 }
 
 export function demoSessionSnapshot() {

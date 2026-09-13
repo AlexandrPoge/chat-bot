@@ -61,7 +61,7 @@ export function profileFromSource(text: string): Partial<BotSettings> {
 }
 
 function titleFromFileName(fileName: string) {
-  const decoded = decodeURIComponent(fileName).replace(/\.[^.]+$/, "");
+  const decoded = fileName.replace(/\.[^.]+$/, "");
   const words = decoded.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   const titled = words.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
   return titled.slice(0, 64) || "Support assistant";

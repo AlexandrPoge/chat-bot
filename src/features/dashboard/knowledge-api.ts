@@ -40,7 +40,6 @@ export async function uploadDocuments(
   return Promise.all(documents.map(async (document, index) => {
     const form = new FormData();
     form.set("file", files[index]);
-    form.set("extractedText", document.summary);
     try {
       const response = await fetch(knowledgePath(botId), {
         method: "POST",

@@ -1,5 +1,7 @@
 import { bearerToken, getKnowledgeContext } from "@/lib/knowledge/context";
-import { ACCEPTED_TYPES, MAX_FILE_SIZE, storeKnowledgeFile } from "@/lib/knowledge/upload";
+import { extractTrustedText } from "@/lib/knowledge/extract";
+import { serviceError } from "@/lib/http-error";
+import { MAX_FILE_SIZE, storeKnowledgeFile } from "@/lib/knowledge/upload";
 
 function unauthorized(message: string) {
   return Response.json({ error: message }, { status: 401 });
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
     .eq("bot_id", context.botId)
     .order("created_at", { ascending: false });
   return error
-    ? Response.json({ error: error.message }, { status: 502 })
+    ? serviceError("Knowledge list failed", error)
     : Response.json({ documents: data ?? [] });
 }
 
@@ -31,6 +33,17 @@ export async function POST(request: Request) {
   if (!context) return unauthorized("Sign in before uploading a source.");
   if ("error" in context) return Response.json({ error: context.error }, { status: context.status });
 
+  const [bot, sourceCount] = await Promise.all([
+    context.supabase.from("bots").select("plan").eq("id", context.botId).single<{ plan: string }>(),
+    context.supabase.from("documents").select("id", { count: "exact", head: true }).eq("bot_id", context.botId),
+  ]);
+  if (bot.error || sourceCount.error) return serviceError("Knowledge limit lookup failed", bot.error ?? sourceCount.error);
+  if (bot.data.plan === "Starter" && (sourceCount.count ?? 0) >= 20) {
+    return Response.json({ error: "Starter allows up to 20 knowledge sources." }, { status: 403 });
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_FILE_SIZE + 512_000) return Response.json({ error: "The maximum source file size is 10 MB." }, { status: 413 });
   let form: FormData;
   try {
     form = await request.formData();
@@ -38,16 +51,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Expected multipart form data." }, { status: 400 });
   }
   const file = form.get("file");
-  const extractedText = typeof form.get("extractedText") === "string"
-    ? String(form.get("extractedText")).slice(0, 12_000)
-    : "";
   if (!(file instanceof File)) return Response.json({ error: "Choose a file to upload." }, { status: 400 });
   if (file.size > MAX_FILE_SIZE) return Response.json({ error: "The maximum source file size is 10 MB." }, { status: 413 });
-  if (file.type && !ACCEPTED_TYPES.has(file.type)) {
-    return Response.json({ error: "Use a PDF, DOCX, TXT, or Markdown file." }, { status: 415 });
-  }
+  const extracted = await extractTrustedText(file);
+  if ("error" in extracted) return Response.json({ error: extracted.error }, { status: 415 });
 
-  const result = await storeKnowledgeFile(context, file, extractedText);
+  const result = await storeKnowledgeFile(context, file, extracted.text);
   return "error" in result
     ? Response.json(result, { status: 502 })
     : Response.json({ ...result, status: "ready" }, { status: 201 });
@@ -65,10 +74,10 @@ export async function DELETE(request: Request) {
     .eq("id", id)
     .eq("bot_id", context.botId)
     .maybeSingle<{ storage_path: string }>();
-  if (error) return Response.json({ error: error.message }, { status: 502 });
+  if (error) return serviceError("Knowledge delete lookup failed", error);
   if (!data) return Response.json({ error: "Source not found." }, { status: 404 });
   const { error: storageError } = await context.supabase.storage.from("knowledge-files").remove([data.storage_path]);
-  if (storageError) return Response.json({ error: storageError.message }, { status: 502 });
+  if (storageError) return serviceError("Knowledge storage delete failed", storageError);
   const { error: deleteError } = await context.supabase.from("documents").delete().eq("id", id).eq("bot_id", context.botId);
-  return deleteError ? Response.json({ error: deleteError.message }, { status: 502 }) : Response.json({ deleted: true });
+  return deleteError ? serviceError("Knowledge row delete failed", deleteError) : Response.json({ deleted: true });
 }

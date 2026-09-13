@@ -27,7 +27,7 @@ Open `http://localhost:3000`. The app runs in free Test AI mode without credenti
 
 3. Source-grounded answers — 40 seconds
 
-   In the private chat, ask: `Can I invite a client to a project?` Show that Orbit returns a direct answer and cites `Team collaboration guide.pdf`. Then open **Knowledge** and explain that every answer is limited to the uploaded sources.
+   In the private chat, ask: `Can I invite a client to a project?` Show that Orbit returns a direct answer grounded in the active knowledge. Then open **Knowledge** and explain that every answer is limited to the selected uploaded source.
 
    Screenshot: a useful answer grounded in the selected source.
 

@@ -22,8 +22,8 @@ export default function LoginPage() {
       setError("Enter a valid email address to continue.");
       return;
     }
-    if (password.length < 4) {
-      setError("Use at least 4 characters for this demo password.");
+    if (password.length < 6) {
+      setError("Use at least 6 characters for your password.");
       return;
     }
     const normalizedEmail = email.trim().toLowerCase();

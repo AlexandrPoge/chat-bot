@@ -2,6 +2,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type Exchange = {
   answer: string;
+  botId: string;
   conversationId?: string;
   documentId?: string;
   question: string;
@@ -15,6 +16,7 @@ export async function recordChatExchange(exchange: Exchange) {
     .from("documents")
     .select("id, bot_id")
     .eq("id", exchange.documentId)
+    .eq("bot_id", exchange.botId)
     .maybeSingle<{ id: string; bot_id: string }>();
   if (!document) return undefined;
 

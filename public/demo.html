@@ -28,6 +28,15 @@
       <button>Start a free workspace</button>
     </main>
     <p class="note">This fictional marketing site demonstrates the independent Helpwise chat widget. Try asking it about client invitations or Pro billing.</p>
-    <script async src="/widget.js" data-bot="orbit_7Q92"></script>
+    <script>
+      const query = new URLSearchParams(window.location.search);
+      const widget = document.createElement("script");
+      widget.src = "/widget.js";
+      widget.async = true;
+      widget.dataset.bot = query.get("bot") || "orbit_7Q92";
+      widget.dataset.open = "true";
+      if (query.get("source")) widget.dataset.source = query.get("source");
+      document.body.appendChild(widget);
+    </script>
   </body>
 </html>

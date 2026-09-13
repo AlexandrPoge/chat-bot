@@ -1,4 +1,5 @@
 import { bearerToken, getKnowledgeContext } from "@/lib/knowledge/context";
+import { serviceError } from "@/lib/http-error";
 
 type BillingBody = { botId?: unknown; plan?: unknown };
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
   if (!context) return Response.json({ error: "Sign in before reading billing." }, { status: 401 });
   if ("error" in context) return Response.json({ error: context.error }, { status: context.status });
   const { data, error } = await context.supabase.from("billing_events").select("id, plan, amount_cents, currency, status, provider, created_at").eq("bot_id", context.botId).order("created_at", { ascending: false }).limit(20);
-  return error ? Response.json({ error: error.message }, { status: 502 }) : Response.json({ events: data ?? [] });
+  return error ? serviceError("Billing history failed", error) : Response.json({ events: data ?? [] });
 }
 
 export async function POST(request: Request) {
@@ -27,8 +28,8 @@ export async function POST(request: Request) {
   if ("error" in context) return Response.json({ error: context.error }, { status: context.status });
   const { data: user } = await context.supabase.auth.getUser(token);
   if (!user.user) return Response.json({ error: "Your session expired." }, { status: 401 });
-  const { error: planError } = await context.supabase.from("bots").update({ plan, updated_at: new Date().toISOString() }).eq("id", context.botId);
-  if (planError) return Response.json({ error: planError.message }, { status: 502 });
+  const { error: planError } = await context.supabase.from("bots").update({ plan, updated_at: new Date().toISOString() }).eq("workspace_id", context.workspaceId);
+  if (planError) return serviceError("Subscription plan update failed", planError);
   const { data: event, error } = await context.supabase.from("billing_events").insert({
     amount_cents: plan === "Pro" ? 3900 : 0,
     bot_id: context.botId,

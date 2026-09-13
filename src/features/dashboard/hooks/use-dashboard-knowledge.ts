@@ -1,7 +1,7 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import type { BotSettings } from "@/lib/bot-settings";
-import { DEFAULT_KNOWLEDGE_SNAPSHOT, readKnowledgeSnapshot, writeKnowledgeSnapshot } from "@/lib/knowledge-store";
-import { cloudDocumentFromRecord, documentFromFile, documentFromSnapshot } from "../documents";
+import { writeKnowledgeSnapshot } from "@/lib/knowledge-store";
+import { cloudDocumentFromRecord, documentFromFile } from "../documents";
 import { accessToken, deleteCloudDocument, fetchCloudDocuments, uploadDocuments } from "../knowledge-api";
 import type { DashboardDocument } from "../types";
 
@@ -25,34 +25,27 @@ function finishSync(items: DashboardDocument[], results: { id: number; cloudId?:
 }
 
 export function useDashboardKnowledge(options: Options) {
-  const [documents, setDocuments] = useState(() => DEFAULT_KNOWLEDGE_SNAPSHOT.sources.map(documentFromSnapshot));
-  const [activeSourceId, setActiveSourceId] = useState(DEFAULT_KNOWLEDGE_SNAPSHOT.activeSourceId);
-  const [restored, setRestored] = useState(false);
+  const [documents, setDocuments] = useState<DashboardDocument[]>([]);
+  const [activeSourceId, setActiveSourceId] = useState(0);
   const activeDocument = documents.find((item) => item.id === activeSourceId) ?? documents[0];
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const saved = readKnowledgeSnapshot();
-      setDocuments(saved.sources.map(documentFromSnapshot));
-      setActiveSourceId(saved.activeSourceId);
-      setRestored(true);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-  useEffect(() => {
-    if (!restored) return;
     writeKnowledgeSnapshot({ activeSourceId, sources: documents.map(({ cloudId, id, name, summary }) => ({ cloudId, id, name, summary })) });
-  }, [activeSourceId, documents, restored]);
+  }, [activeSourceId, documents]);
   useEffect(() => {
+    if (!options.botId) return;
     let cancelled = false;
     void (async () => {
       try {
+        await Promise.resolve();
+        if (cancelled) return;
+        setDocuments([]);
+        setActiveSourceId(0);
         const token = await accessToken();
         if (!token || !options.botId) return;
         const cloud = await fetchCloudDocuments(token, options.botId);
         if (cancelled) return;
-        const restored = cloud.map(cloudDocumentFromRecord);
-        const next = restored.length ? restored : DEFAULT_KNOWLEDGE_SNAPSHOT.sources.map(documentFromSnapshot);
+        const next = cloud.map(cloudDocumentFromRecord);
         setDocuments(next);
         setActiveSourceId(next[0]?.id ?? 0);
       } catch {

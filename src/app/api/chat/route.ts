@@ -1,120 +1,70 @@
-import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
+import { generateGroundedAnswer } from "@/lib/ai/answer";
+import { bearerToken, getKnowledgeContext } from "@/lib/knowledge/context";
 import { recordChatExchange } from "@/lib/knowledge/chat-persistence";
-import { retrieveRelevantChunks } from "@/lib/knowledge/search";
+import { loadTrustedSources, retrieveRelevantChunks, type TrustedSource } from "@/lib/knowledge/search";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getTestAnswer } from "@/lib/test-assistant";
-type Source = {
-  cloudId?: string;
-  name: string;
-  summary: string;
-};
+import { takeChatRequest } from "@/lib/rate-limit";
 
-type ChatRequest = {
-  conversationId?: unknown;
-  question?: unknown;
-  sources?: unknown;
-  visitorId?: unknown;
-};
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type ChatRequest = { botId?: unknown; conversationId?: unknown; question?: unknown; sources?: unknown; visitorId?: unknown };
 
-function toSources(value: unknown): Source[] {
+function sourceIds(value: unknown) {
   if (!Array.isArray(value)) return [];
-
-  return value
-    .filter((source): source is Record<string, unknown> => typeof source === "object" && source !== null)
-    .map((source) => ({
-      cloudId: typeof source.cloudId === "string" ? source.cloudId : undefined,
-      name: typeof source.name === "string" ? source.name : "Untitled source",
-      summary: typeof source.summary === "string" ? source.summary : "",
-    }))
-    .filter((source) => source.summary.length > 0)
-    .slice(0, 8);
+  return value.flatMap((source) => {
+    if (!source || typeof source !== "object") return [];
+    const id = (source as { cloudId?: unknown }).cloudId;
+    return typeof id === "string" && UUID.test(id) ? [id] : [];
+  }).slice(0, 2);
 }
 
-function persist(body: ChatRequest, source: Source | undefined, question: string, answer: string) {
+async function canUseBot(request: Request, botId: string) {
+  const token = bearerToken(request);
+  if (token) return !("error" in await getKnowledgeContext(token, botId));
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) return false;
+  const { data } = await supabase.from("bots").select("id").eq("id", botId).eq("is_published", true).maybeSingle();
+  return Boolean(data);
+}
+
+function fallback(question: string, sources: TrustedSource[]) {
+  return getTestAnswer(question, sources, Date.now());
+}
+
+async function persist(body: ChatRequest, botId: string, source: TrustedSource, question: string, answer: string) {
   return recordChatExchange({
-    answer, question, documentId: source?.cloudId,
+    answer, botId, question, documentId: source.id,
     conversationId: typeof body.conversationId === "string" ? body.conversationId : undefined,
     visitorId: typeof body.visitorId === "string" ? body.visitorId : undefined,
-  }).catch((error) => {
-    console.error("Conversation persistence failed", error);
-    return undefined;
-  });
+  }).catch((error) => { console.error("Conversation persistence failed", error); return undefined; });
 }
 
 export async function POST(request: Request) {
-  let body: ChatRequest;
-
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "The request must contain JSON." }, { status: 400 });
-  }
-
+  const length = Number(request.headers.get("content-length") ?? 0);
+  if (length > 32_000) return Response.json({ error: "Chat request is too large." }, { status: 413 });
+  const body = await request.json().catch(() => undefined) as ChatRequest | undefined;
+  if (!body) return Response.json({ error: "The request must contain JSON." }, { status: 400 });
+  const botId = typeof body.botId === "string" && UUID.test(body.botId) ? body.botId : "";
   const question = typeof body.question === "string" ? body.question.trim() : "";
-  const sources = toSources(body.sources);
-
-  if (!question || question.length > 2_000) {
-    return Response.json({ error: "Provide a question between 1 and 2,000 characters." }, { status: 400 });
+  const ids = sourceIds(body.sources);
+  if (!botId || !question || question.length > 2_000 || !ids.length) {
+    return Response.json({ error: "Choose a synced source and provide a valid question." }, { status: 400 });
   }
-
-  if (!sources.length) {
-    return Response.json({ error: "Add at least one knowledge source before asking a question." }, { status: 400 });
-  }
-
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  const openAiApiKey = process.env.OPENAI_API_KEY;
-  if (!geminiApiKey && !openAiApiKey) {
-    const answer = getTestAnswer(question, sources, question.length);
-    const conversationId = await persist(body, sources[0], question, answer.content);
-    return Response.json({
-      answer: answer.content,
-      conversationId,
-      source: answer.source,
-      mode: "test",
-      followUp: answer.followUp,
-    });
-  }
-
-  try {
-    const retrieved = await retrieveRelevantChunks(question, sources.flatMap((source) => source.cloudId ? [source.cloudId] : []));
-    const sourceContext = retrieved.length
-      ? retrieved.map((chunk) => `SOURCE: ${chunk.filename}\n${chunk.content}`).join("\n\n---\n\n")
-      : sources.map((source) => `SOURCE: ${source.name}\n${source.summary.slice(0, 8_000)}`).join("\n\n---\n\n");
-    const sourceName = retrieved[0]?.filename ?? sources[0]?.name;
-    let answer = "";
-    if (geminiApiKey) {
-      const client = new GoogleGenAI({ apiKey: geminiApiKey });
-      const response = await client.interactions.create({
-        model: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
-        input: [
-            "You are a concise, warm customer-support assistant.",
-            "Answer only from the supplied knowledge sources; never invent policy, availability, pricing, or medical advice.",
-            "If the source does not answer the question, say that clearly and suggest the next useful step.",
-            "Reply in the customer's language, use short paragraphs, and do not mention prompts or internal implementation.",
-            `Knowledge sources:\n${sourceContext}`,
-            `Customer question: ${question}`,
-          ].join("\n\n"),
-        generation_config: { thinking_level: "minimal", max_output_tokens: 800 },
-      });
-      answer = response.output_text?.trim() ?? "";
-    } else if (openAiApiKey) {
-      const client = new OpenAI({ apiKey: openAiApiKey });
-      const response = await client.responses.create({
-        model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-        store: false,
-        instructions: "You are a concise customer support assistant. Answer only from the supplied knowledge sources. If the sources do not answer, say so plainly. Reply in the customer's language.",
-        input: `Knowledge sources:\n${sourceContext}\n\nCustomer question: ${question}`,
-      });
-      answer = response.output_text.trim();
-    }
-    if (!answer) {
-      return Response.json({ error: "The model returned no text." }, { status: 502 });
-    }
-
-    const conversationId = await persist(body, sources[0], question, answer);
-    return Response.json({ answer, conversationId, source: sourceName, mode: "live", provider: geminiApiKey ? "gemini" : "openai", retrieval: retrieved.length ? "pgvector" : "source" });
-  } catch (error) {
-    console.error("Helpwise AI response failed", error);
-    return Response.json({ error: "The AI service could not answer right now." }, { status: 502 });
-  }
+  if (!await canUseBot(request, botId)) return Response.json({ error: "This bot is not available." }, { status: 404 });
+  const limit = await takeChatRequest(request, botId);
+  if (!limit.allowed) return Response.json({ error: "Too many questions. Please wait a moment." }, { status: 429, headers: { "Retry-After": String(limit.retryAfter) } });
+  const sources = await loadTrustedSources(botId, ids);
+  if (!sources.length) return Response.json({ error: "The selected source is not available." }, { status: 404 });
+  const chunks = await retrieveRelevantChunks(question, botId, sources);
+  const context = chunks.length
+    ? chunks.map((chunk) => `SOURCE: ${chunk.filename}\n${chunk.content}`).join("\n\n---\n\n")
+    : sources.map((source) => `SOURCE: ${source.name}\n${source.summary.slice(0, 8_000)}`).join("\n\n---\n\n");
+  let result: Awaited<ReturnType<typeof generateGroundedAnswer>>;
+  try { result = await generateGroundedAnswer(question, context); } catch (error) { console.error("Helpwise AI response failed", error); }
+  const answer = result?.text ? { content: result.text, source: sources[0].name } : fallback(question, sources);
+  const conversationId = await persist(body, botId, sources[0], question, answer.content);
+  return Response.json({
+    answer: answer.content, conversationId, source: answer.source, mode: result ? "live" : "test",
+    provider: result?.provider ?? "test", retrieval: chunks.length ? "pgvector" : "source",
+  });
 }

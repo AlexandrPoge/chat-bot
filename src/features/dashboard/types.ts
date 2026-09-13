@@ -10,7 +10,7 @@ export type DashboardDocument = KnowledgeSource & {
   id: number;
   type: "PDF" | "DOCX" | "TXT" | "MD";
   size: string;
-  status: "Ready" | "Indexing";
+  status: "Ready" | "Indexing" | "Failed";
   profile?: Partial<BotSettings>;
   cloudStatus?: "Uploading" | "Synced" | "Failed";
   cloudId?: string;
@@ -41,6 +41,7 @@ export type CloudBot = {
   welcome_message: string;
   accent_color: string;
   plan: Plan;
+  is_published: boolean;
 };
 
 export type DashboardStats = {

@@ -20,7 +20,7 @@ async function workspaceIdFor(context: KnowledgeContext, ownerId: string): Promi
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle<Workspace>();
-  if (error) return { error: error.message, status: 500 };
+  if (error) { console.error("Workspace lookup failed", error); return { error: "Workspace storage is unavailable.", status: 500 }; }
   if (data) return { id: data.id };
 
   const created = await context.supabase
@@ -28,17 +28,18 @@ async function workspaceIdFor(context: KnowledgeContext, ownerId: string): Promi
     .insert({ owner_id: ownerId, name: "Helpwise workspace" })
     .select("id")
     .single<Workspace>();
-  return created.error || !created.data
-    ? { error: created.error?.message ?? "Could not create the workspace.", status: 500 }
-    : { id: created.data.id };
+  if (created.error || !created.data) {
+    console.error("Workspace creation failed", created.error);
+    return { error: "Could not create the workspace.", status: 500 };
+  }
+  return { id: created.data.id };
 }
 
 async function botIdFor(context: KnowledgeContext, workspaceId: string, requestedBotId?: string): Promise<IdResult> {
   if (requestedBotId) {
     const requested = await context.supabase.from("bots").select("id").eq("id", requestedBotId).eq("workspace_id", workspaceId).maybeSingle<Bot>();
-    return requested.error || !requested.data
-      ? { error: requested.error?.message ?? "Bot not found in this workspace.", status: requested.error ? 500 : 404 }
-      : { id: requested.data.id };
+    if (requested.error) { console.error("Bot ownership lookup failed", requested.error); return { error: "Bot storage is unavailable.", status: 500 }; }
+    return requested.data ? { id: requested.data.id } : { error: "Bot not found in this workspace.", status: 404 };
   }
   const { data, error } = await context.supabase
     .from("bots")
@@ -47,7 +48,7 @@ async function botIdFor(context: KnowledgeContext, workspaceId: string, requeste
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle<Bot>();
-  if (error) return { error: error.message, status: 500 };
+  if (error) { console.error("Bot lookup failed", error); return { error: "Bot storage is unavailable.", status: 500 }; }
   if (data) return { id: data.id };
 
   const created = await context.supabase
@@ -55,9 +56,11 @@ async function botIdFor(context: KnowledgeContext, workspaceId: string, requeste
     .insert({ workspace_id: workspaceId, name: "Orbit support", welcome_message: "Hi! How can I help?" })
     .select("id")
     .single<Bot>();
-  return created.error || !created.data
-    ? { error: created.error?.message ?? "Could not create the bot.", status: 500 }
-    : { id: created.data.id };
+  if (created.error || !created.data) {
+    console.error("Bot creation failed", created.error);
+    return { error: "Could not create the bot.", status: 500 };
+  }
+  return { id: created.data.id };
 }
 
 export async function getKnowledgeContext(token: string, requestedBotId?: string): Promise<ContextResult> {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_BOT_SETTINGS, type BotSettings, writeBotSettings } from "@/lib/bot-settings";
-import { createBot, fetchBots, updateBot } from "../bot-api";
+import { createBot, deleteBot, fetchBots, updateBot } from "../bot-api";
 import type { CloudBot, Plan } from "../types";
 
 function settingsFor(bot?: CloudBot): BotSettings {
@@ -40,16 +40,39 @@ export function useDashboardBots(notify: (message: string) => void) {
       notify(error instanceof Error ? error.message : "Could not create a bot.");
     }
   };
+  const remove = async () => {
+    if (!activeBot || bots.length <= 1) return;
+    try {
+      await deleteBot(activeBot.id);
+      const remaining = bots.filter((bot) => bot.id !== activeBot.id);
+      setBots(remaining);
+      setActiveId(remaining[0].id);
+      writeBotSettings(settingsFor(remaining[0]));
+      notify("Bot and its cloud data were deleted.");
+    } catch (error) { notify(error instanceof Error ? error.message : "Could not delete the bot."); }
+  };
   const saveSettings = async (settings: BotSettings) => {
-    writeBotSettings(settings);
-    if (!activeBot) return;
-    setBots((items) => items.map((bot) => bot.id === activeBot.id ? { ...bot, name: settings.name, welcome_message: settings.welcome, accent_color: settings.accent } : bot));
-    try { await updateBot(activeBot.id, settings); } catch (error) { notify(error instanceof Error ? error.message : "Settings were not synced."); }
+    if (!activeBot) return false;
+    const normalized = { ...settings, name: settings.name.trim().slice(0, 64), welcome: settings.welcome.trim().slice(0, 400) };
+    if (!normalized.name || !normalized.welcome) { notify("Bot name and welcome message are required."); return false; }
+    try {
+      const saved = await updateBot(activeBot.id, normalized);
+      setBots((items) => items.map((bot) => bot.id === saved.id ? saved : bot));
+      writeBotSettings(settingsFor(saved));
+      return true;
+    } catch (error) { notify(error instanceof Error ? error.message : "Settings were not synced."); return false; }
   };
-  const savePlan = async (plan: Plan) => {
+  const applyPlan = (plan: Plan) => {
     if (!activeBot) return;
-    setBots((items) => items.map((bot) => bot.id === activeBot.id ? { ...bot, plan } : bot));
-    try { await updateBot(activeBot.id, undefined, plan); } catch (error) { notify(error instanceof Error ? error.message : "Plan was not synced."); }
+    setBots((items) => items.map((bot) => ({ ...bot, plan })));
   };
-  return { activeBot, activeId, add, bots, plan: activeBot?.plan ?? "Starter", savePlan, saveSettings, select, settings: settingsFor(activeBot) };
+  const savePublished = async (published: boolean) => {
+    if (!activeBot) return false;
+    try {
+      const saved = await updateBot(activeBot.id, undefined, published);
+      setBots((items) => items.map((bot) => bot.id === saved.id ? saved : bot));
+      return true;
+    } catch (error) { notify(error instanceof Error ? error.message : "Publishing failed."); return false; }
+  };
+  return { activeBot, activeId, add, applyPlan, bots, plan: activeBot?.plan ?? "Starter", remove, savePublished, saveSettings, select, settings: settingsFor(activeBot) };
 }

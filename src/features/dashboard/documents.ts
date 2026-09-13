@@ -31,7 +31,7 @@ export function cloudDocumentFromRecord(record: CloudDocument): DashboardDocumen
     name: record.filename,
     type: documentType(record.filename),
     size: `${Math.max(1, Math.round(record.byte_size / 1024))} KB · Supabase`,
-    status: record.processing_status === "ready" ? "Ready" : "Indexing",
+    status: record.processing_status === "ready" ? "Ready" : record.processing_status === "failed" ? "Failed" : "Indexing",
     summary: record.extracted_text || "This source is stored in Supabase and is still being indexed.",
     profile: profileFromDocument(record.filename, record.extracted_text || ""),
   };

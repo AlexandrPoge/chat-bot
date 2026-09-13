@@ -13,13 +13,13 @@ export const planFeatures: Record<Plan, PlanFeature[]> = {
   Starter: [
     { label: "1 active bot", icon: Bot },
     { label: "20 knowledge sources", icon: Database },
-    { label: "1,000 answers / month", icon: MessageCircleMore },
+    { label: "Unlimited free Test AI", icon: MessageCircleMore },
     { label: "Helpwise widget", icon: Sparkles },
   ],
   Pro: [
     { label: "Up to 5 active bots", icon: Bot },
     { label: "Unlimited knowledge sources", icon: Database },
-    { label: "Custom colors and domains", icon: Settings2 },
-    { label: "Remove Helpwise branding", icon: BadgeCheck },
+    { label: "Multiple published widgets", icon: Settings2 },
+    { label: "Supabase billing history", icon: BadgeCheck },
   ],
 };

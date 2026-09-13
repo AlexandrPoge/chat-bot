@@ -1,23 +1,23 @@
 import { useState } from "react";
 import { getTestAnswer } from "@/lib/test-assistant";
+import { accessToken } from "../knowledge-api";
 import type { DashboardDocument, ChatMessage, ChatMode } from "../types";
 
-const welcome = "Hi — I’ll answer from the active document and show the source on every reply. What would you like to know?";
+const welcome = "Hi! I’m ready to help. Ask a customer question and I’ll answer from the active knowledge source.";
 
-function firstMessage(document?: DashboardDocument): ChatMessage {
+function firstMessage(): ChatMessage {
   return {
     id: 1,
     role: "assistant",
-    content: document ? `I’m now using “${document.name}”. Ask a customer question and I’ll keep the answer clear and grounded.` : welcome,
-    source: document?.name,
+    content: welcome,
   };
 }
 
-export function useDashboardChat(notify: (message: string) => void) {
+export function useDashboardChat(notify: (message: string) => void, botId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([firstMessage()]);
   const [conversationId, setConversationId] = useState<string>();
   const [isAnswering, setIsAnswering] = useState(false);
-  const resetChat = (document?: DashboardDocument) => { setMessages([firstMessage(document)]); setConversationId(undefined); };
+  const resetChat = () => { setMessages([firstMessage()]); setConversationId(undefined); };
   const appendTest = (question: string, source?: DashboardDocument) => {
     const answer = getTestAnswer(question, source ? [source] : [], Date.now());
     setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", ...answer }]);
@@ -32,11 +32,18 @@ export function useDashboardChat(notify: (message: string) => void) {
       }, 420);
       return;
     }
+    if (!source?.cloudId || !botId) {
+      appendTest(question, source);
+      setIsAnswering(false);
+      notify("Sync this source to Supabase before using Gemini. Test AI answered instead.");
+      return;
+    }
     try {
+      const token = await accessToken();
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, question, sources: source ? [source] : [], visitorId: "dashboard-preview" }),
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ botId, conversationId, question, sources: [source], visitorId: "dashboard-preview" }),
       });
       const body = await response.json() as { answer?: string; conversationId?: string; source?: string; mode?: "test" | "live" };
       if (response.ok && body.answer?.trim()) {

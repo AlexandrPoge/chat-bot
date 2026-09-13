@@ -1,4 +1,5 @@
 import { bearerToken, getKnowledgeContext } from "@/lib/knowledge/context";
+import { serviceError } from "@/lib/http-error";
 
 export async function GET(request: Request) {
   const token = bearerToken(request);
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     context.supabase.from("conversations").select("id", { count: "exact" }).eq("bot_id", context.botId),
   ]);
   if (documents.error || conversations.error) {
-    return Response.json({ error: documents.error?.message ?? conversations.error?.message }, { status: 502 });
+    return serviceError("Analytics summary failed", documents.error ?? conversations.error);
   }
   const ids = (conversations.data ?? []).map((item) => item.id);
   if (!ids.length) return Response.json({ answers: 0, conversations: 0, groundedAnswers: 0, sources: documents.count ?? 0 });
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     context.supabase.from("messages").select("id", { count: "exact", head: true }).in("conversation_id", ids).eq("role", "assistant"),
     context.supabase.from("messages").select("id", { count: "exact", head: true }).in("conversation_id", ids).eq("role", "assistant").not("source_document_id", "is", null),
   ]);
-  if (answers.error || grounded.error) return Response.json({ error: answers.error?.message ?? grounded.error?.message }, { status: 502 });
+  if (answers.error || grounded.error) return serviceError("Analytics messages failed", answers.error ?? grounded.error);
   return Response.json({
     answers: answers.count ?? 0,
     conversations: conversations.count ?? 0,

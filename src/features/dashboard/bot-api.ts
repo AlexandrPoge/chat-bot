@@ -1,5 +1,5 @@
 import type { BotSettings } from "@/lib/bot-settings";
-import type { CloudBot, Plan } from "./types";
+import type { CloudBot } from "./types";
 import { accessToken } from "./knowledge-api";
 
 async function request(path: string, init?: RequestInit) {
@@ -24,10 +24,14 @@ export async function createBot(name: string) {
   return bot;
 }
 
-export async function updateBot(id: string, settings?: BotSettings, plan?: Plan) {
+export async function deleteBot(id: string) {
+  await request(`/api/bots?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function updateBot(id: string, settings?: BotSettings, published?: boolean) {
   const bot = (await request("/api/bots", {
     method: "PATCH",
-    body: JSON.stringify({ id, ...settings, plan }),
+    body: JSON.stringify({ id, ...settings, published }),
   })).bot;
   if (!bot) throw new Error("The updated bot was not returned.");
   return bot;

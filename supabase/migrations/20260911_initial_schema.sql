@@ -18,6 +18,7 @@ create table if not exists public.bots (
   welcome_message text not null default 'Hi! How can I help?',
   accent_color text not null default '#D9FB97',
   plan text not null default 'Starter' check (plan in ('Starter', 'Pro')),
+  is_published boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -66,6 +67,12 @@ create table if not exists public.messages (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.chat_rate_limits (
+  rate_key text primary key,
+  window_started_at timestamptz not null default now(),
+  request_count integer not null default 0
+);
+
 create index if not exists conversations_bot_id_idx on public.conversations(bot_id);
 create index if not exists messages_conversation_id_idx on public.messages(conversation_id);
 
@@ -75,6 +82,7 @@ alter table public.documents enable row level security;
 alter table public.document_chunks enable row level security;
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
+alter table public.chat_rate_limits enable row level security;
 
 create policy "workspace owner manages workspace" on public.workspaces for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "workspace owner manages bots" on public.bots for all to authenticated using (exists (select 1 from public.workspaces where workspaces.id = bots.workspace_id and workspaces.owner_id = auth.uid())) with check (exists (select 1 from public.workspaces where workspaces.id = bots.workspace_id and workspaces.owner_id = auth.uid()));
@@ -102,6 +110,7 @@ create policy "workspace owner manages knowledge files" on storage.objects for a
 create or replace function public.match_document_chunks(
   query_embedding extensions.vector(1536),
   match_bot_id uuid,
+  match_document_ids uuid[],
   match_count integer default 5
 )
 returns table (id uuid, document_id uuid, content text, similarity double precision)
@@ -110,9 +119,29 @@ as $$
   select document_chunks.id, document_chunks.document_id, document_chunks.content,
     1 - (document_chunks.embedding <=> query_embedding) as similarity
   from public.document_chunks
-  where document_chunks.bot_id = match_bot_id and document_chunks.embedding is not null
+  where document_chunks.bot_id = match_bot_id
+    and document_chunks.document_id = any(match_document_ids)
+    and document_chunks.embedding is not null
   order by document_chunks.embedding <=> query_embedding
   limit least(greatest(match_count, 1), 10);
 $$;
 
-grant execute on function public.match_document_chunks(extensions.vector, uuid, integer) to authenticated, service_role;
+create or replace function public.consume_chat_quota(request_key text, max_requests integer, window_seconds integer)
+returns boolean
+language plpgsql security definer set search_path = public
+as $$
+declare current_count integer;
+begin
+  insert into public.chat_rate_limits as limits (rate_key, window_started_at, request_count)
+  values (request_key, now(), 1)
+  on conflict (rate_key) do update set
+    window_started_at = case when limits.window_started_at <= now() - make_interval(secs => window_seconds) then now() else limits.window_started_at end,
+    request_count = case when limits.window_started_at <= now() - make_interval(secs => window_seconds) then 1 else limits.request_count + 1 end
+  returning request_count into current_count;
+  return current_count <= max_requests;
+end;
+$$;
+
+revoke all on function public.consume_chat_quota(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.consume_chat_quota(text, integer, integer) to service_role;
+grant execute on function public.match_document_chunks(extensions.vector, uuid, uuid[], integer) to authenticated, service_role;

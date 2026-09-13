@@ -2,12 +2,6 @@ import type { KnowledgeContext } from "./context";
 import { embedKnowledgeChunks } from "@/lib/ai/embeddings";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
-export const ACCEPTED_TYPES = new Set([
-  "application/pdf",
-  "text/plain",
-  "text/markdown",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
 
 function cleanFileName(value: string) {
   const safe = value.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
@@ -32,7 +26,10 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
       contentType: file.type || "application/octet-stream",
       upsert: false,
     });
-  if (uploadError) return { error: `Storage upload failed: ${uploadError.message}` };
+  if (uploadError) {
+    console.error("Knowledge storage upload failed", uploadError);
+    return { error: "Cloud storage could not save this file." };
+  }
 
   const { error: documentError } = await context.supabase.from("documents").insert({
     id: documentId,
@@ -45,8 +42,9 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
     extracted_text: extractedText || null,
   });
   if (documentError) {
+    console.error("Knowledge document insert failed", documentError);
     await context.supabase.storage.from("knowledge-files").remove([storagePath]);
-    return { error: `Document record failed: ${documentError.message}` };
+    return { error: "The source record could not be created." };
   }
 
   const contents = splitIntoChunks(extractedText);
@@ -69,8 +67,12 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
   }
 
   const { error: chunkError } = await context.supabase.from("document_chunks").insert(chunks);
-  await context.supabase.from("documents").update({ processing_status: chunkError ? "failed" : "ready" }).eq("id", documentId);
-  return chunkError
-    ? { error: `File saved, but text indexing failed: ${chunkError.message}` }
-    : { id: documentId, indexed: embeddings.length === chunks.length, storagePath };
+  if (chunkError) {
+    console.error("Knowledge chunk insert failed", chunkError);
+    await context.supabase.from("documents").delete().eq("id", documentId);
+    await context.supabase.storage.from("knowledge-files").remove([storagePath]);
+    return { error: "Text indexing failed. Nothing was saved; please retry." };
+  }
+  await context.supabase.from("documents").update({ processing_status: "ready" }).eq("id", documentId);
+  return { id: documentId, indexed: embeddings.length === chunks.length, storagePath };
 }
