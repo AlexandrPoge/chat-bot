@@ -1,6 +1,6 @@
 # Supabase setup
 
-The interactive demo works without an account or API charges. Supabase is the persistence layer for production: authenticated workspaces, source files, parsed chunks, and conversations. Signed-in uploads call `/api/knowledge`, which verifies the user's Supabase token before writing to Storage and Postgres.
+The landing page is public, while the workspace requires Supabase Auth. Supabase persists authenticated workspaces, private source files, parsed chunks, conversations, publish state, rate limits, and mock billing events. Signed-in uploads call `/api/knowledge`, which verifies the user's token and validates/extracts the file on the server before writing to Storage and Postgres.
 
 1. Create a Supabase project and enable Email authentication.
 2. Open **SQL Editor** and run every file in `migrations/` in filename order.

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import type { BotSettings } from "@/lib/bot-settings";
+import { DEFAULT_BOT_SETTINGS, type BotSettings } from "@/lib/bot-settings";
 import type { KnowledgeSource } from "@/lib/test-assistant";
-import { useWidgetKnowledge, useWidgetSettings } from "./use-widget-stores";
 
 type RemoteData = { settings: BotSettings; source?: KnowledgeSource & { id: number } };
 type WidgetResponse = {
@@ -15,11 +14,8 @@ function numberFromId(value: string) {
 }
 
 export function usePublicWidget(botId: string, sourceId?: string) {
-  const localSettings = useWidgetSettings();
-  const localKnowledge = useWidgetKnowledge();
-  const localSource = localKnowledge.sources.find((item) => item.id === localKnowledge.activeSourceId) ?? localKnowledge.sources[0];
   const [remote, setRemote] = useState<RemoteData>();
-  const [status, setStatus] = useState<"local" | "loading" | "ready" | "error">(UUID.test(botId) ? "loading" : "local");
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(UUID.test(botId) ? "loading" : "error");
 
   useEffect(() => {
     if (!UUID.test(botId)) return;
@@ -38,5 +34,5 @@ export function usePublicWidget(botId: string, sourceId?: string) {
     return () => { cancelled = true; };
   }, [botId, sourceId]);
 
-  return { available: status !== "error", loading: status === "loading", settings: remote?.settings ?? localSettings, source: remote?.source ?? localSource };
+  return { available: status === "ready" && Boolean(remote?.source), loading: status === "loading", settings: remote?.settings ?? DEFAULT_BOT_SETTINGS, source: remote?.source };
 }

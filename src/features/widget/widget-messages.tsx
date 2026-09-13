@@ -14,7 +14,7 @@ type Props = {
 function promptExamples(source?: KnowledgeSource) {
   return source?.name.toLowerCase().includes("dental")
     ? ["How do I book an appointment?", "Can you help with a filling?"]
-    : ["How do I get started?", "What plan should I choose?"];
+    : ["What can you help me with?", "What are the key details?"];
 }
 
 export function WidgetMessages({ activeSource, loading, messages, settings, onPrompt }: Props) {

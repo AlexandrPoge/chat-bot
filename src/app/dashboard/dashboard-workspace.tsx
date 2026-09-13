@@ -29,19 +29,20 @@ export function DashboardWorkspace() {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [widgetOrigin] = useState(() => globalThis.location?.origin ?? "https://your-helpwise-domain.com");
   const fileInput = useRef<HTMLInputElement>(null);
   const session = useDemoSession();
   const notify = useCallback((message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); }, []);
   const bots = useDashboardBots(notify);
   const settings = bots.settings;
   const chat = useDashboardChat(notify, bots.activeId);
-  const stats = useDashboardStats(bots.activeId, chat.messages.length);
-  const knowledge = useDashboardKnowledge({ botId: bots.activeId, notify, resetChat: chat.resetChat, saveSettings: (value) => { void bots.saveSettings(value); }, settings });
+  const knowledge = useDashboardKnowledge({ botId: bots.activeId, notify, resetChat: chat.resetChat, saveSettings: bots.saveSettings, settings });
+  const stats = useDashboardStats(bots.activeId, chat.messages.length + knowledge.documents.length);
   const sourceAttribute = knowledge.activeDocument?.cloudId ? ` data-source="${knowledge.activeDocument.cloudId}"` : "";
-  const embedCode = `<script async src="https://app.helpwise.ai/widget.js" data-bot="${bots.activeId}"${sourceAttribute}></script>`;
+  const embedCode = `<script async src="${widgetOrigin}/widget.js" data-bot="${bots.activeId}"${sourceAttribute}></script>`;
   const demoUrl = `/demo.html?bot=${encodeURIComponent(bots.activeId)}${knowledge.activeDocument?.cloudId ? `&source=${encodeURIComponent(knowledge.activeDocument.cloudId)}` : ""}`;
   const copyEmbedCode = async () => {
-    await navigator.clipboard?.writeText(`<script async src="${window.location.origin}/widget.js" data-bot="${bots.activeId}"${sourceAttribute}></script>`);
+    await navigator.clipboard?.writeText(embedCode);
     setCopied(true); notify("Embed code copied"); window.setTimeout(() => setCopied(false), 1800);
   };
   const activatePlan = async () => {
@@ -69,6 +70,6 @@ export function DashboardWorkspace() {
     : active === "knowledge" ? <KnowledgePage activeDocument={knowledge.activeDocument} activeSourceId={knowledge.activeSourceId} documents={knowledge.documents} fileInput={fileInput} onAddFiles={knowledge.addFiles} onChoose={knowledge.chooseSource} onRemove={knowledge.removeSource} />
     : active === "widget" ? <WidgetPage activeDocument={knowledge.activeDocument} code={embedCode} copied={copied} demoUrl={demoUrl} onCopy={copyEmbedCode} onPublish={() => { void bots.savePublished(!bots.activeBot?.is_published).then((saved) => { if (saved) notify(bots.activeBot?.is_published ? "Widget unpublished." : "Widget published and ready to test."); }); }} published={Boolean(bots.activeBot?.is_published)} />
       : active === "settings" ? <SettingsEditor documentCount={knowledge.documents.length} key={JSON.stringify(settings)} onReset={() => { void bots.saveSettings(DEFAULT_BOT_SETTINGS).then((saved) => { if (saved) notify("Default settings restored."); }); }} onSave={(value) => { void bots.saveSettings(value).then((saved) => { if (saved) notify("Settings saved to Supabase and widget updated."); }); }} onUpgrade={() => setBillingStep("plans")} plan={bots.plan} settings={settings} />
-        : <OverviewPage activeDocument={knowledge.activeDocument} documents={knowledge.documents} isAnswering={chat.isAnswering} messages={chat.messages} onAsk={(question, mode) => chat.askBot(question, mode, knowledge.activeDocument)} onGoTo={setActive} settings={settings} stats={stats} userName={session?.email.split("@")[0] || ""} />;
+        : <OverviewPage activeDocument={knowledge.activeDocument} documents={knowledge.documents} isAnswering={chat.isAnswering} messages={chat.messages} onAsk={(question, mode) => chat.askBot(question, mode, knowledge.activeDocument)} onGoTo={setActive} published={Boolean(bots.activeBot?.is_published)} settings={settings} stats={stats} userName={session?.email.split("@")[0] || ""} />;
   return <><DashboardShell active={active} activeBotId={bots.activeId} bots={bots.bots} onBotCreate={() => { void bots.add(); }} onBotDelete={() => { if (window.confirm(`Delete ${bots.activeBot?.name ?? "this bot"} and all its sources?`)) void bots.remove(); }} onBotSelect={(id) => { bots.select(id); chat.resetChat(); }} onGoTo={setActive} onLogout={() => { void logout(); }} onProfileToggle={() => setProfileOpen((value) => !value)} onUpgrade={() => setBillingStep("plans")} plan={bots.plan} profileOpen={profileOpen} session={session} toast={toast}>{content}</DashboardShell>{billingStep === "plans" && <PlanDialog choice={choice} onChoose={setChoice} onClose={() => setBillingStep(null)} onContinue={activatePlan} />}{billingStep === "checkout" && <TestCheckout onClose={() => setBillingStep("plans")} onPaid={completePayment} />}</>;
 }

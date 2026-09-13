@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_BOT_SETTINGS, type BotSettings, writeBotSettings } from "@/lib/bot-settings";
+import { DEFAULT_BOT_SETTINGS, type BotSettings } from "@/lib/bot-settings";
 import { createBot, deleteBot, fetchBots, updateBot } from "../bot-api";
 import type { CloudBot, Plan } from "../types";
 
@@ -18,7 +18,6 @@ export function useDashboardBots(notify: (message: string) => void) {
       if (cancelled) return;
       setBots(items);
       setActiveId(items[0]?.id ?? "");
-      writeBotSettings(settingsFor(items[0]));
     }).catch((error) => notify(error instanceof Error ? error.message : "Could not load bots."));
     return () => { cancelled = true; };
   }, [notify]);
@@ -27,14 +26,12 @@ export function useDashboardBots(notify: (message: string) => void) {
     const selected = bots.find((bot) => bot.id === id);
     if (!selected) return;
     setActiveId(id);
-    writeBotSettings(settingsFor(selected));
   };
   const add = async () => {
     try {
       const bot = await createBot(`Support bot ${bots.length + 1}`);
       setBots((items) => [...items, bot]);
       setActiveId(bot.id);
-      writeBotSettings(settingsFor(bot));
       notify("New bot created in Supabase.");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not create a bot.");
@@ -47,7 +44,6 @@ export function useDashboardBots(notify: (message: string) => void) {
       const remaining = bots.filter((bot) => bot.id !== activeBot.id);
       setBots(remaining);
       setActiveId(remaining[0].id);
-      writeBotSettings(settingsFor(remaining[0]));
       notify("Bot and its cloud data were deleted.");
     } catch (error) { notify(error instanceof Error ? error.message : "Could not delete the bot."); }
   };
@@ -58,7 +54,6 @@ export function useDashboardBots(notify: (message: string) => void) {
     try {
       const saved = await updateBot(activeBot.id, normalized);
       setBots((items) => items.map((bot) => bot.id === saved.id ? saved : bot));
-      writeBotSettings(settingsFor(saved));
       return true;
     } catch (error) { notify(error instanceof Error ? error.message : "Settings were not synced."); return false; }
   };

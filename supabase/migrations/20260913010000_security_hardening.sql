@@ -59,4 +59,4 @@ as $$
   order by chunks.embedding <=> query_embedding
   limit least(greatest(match_count, 1), 10);
 $$;
-grant execute on function public.match_document_chunks(extensions.vector, uuid, uuid[], integer) to authenticated, service_role;
+grant execute on function public.match_document_chunks(extensions.vector, uuid, uuid[], integer) to service_role;

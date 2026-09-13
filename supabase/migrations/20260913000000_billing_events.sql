@@ -1,3 +1,4 @@
+-- Mock billing history visible only to its workspace owner.
 create table if not exists public.billing_events (
   id uuid primary key default gen_random_uuid(),
   bot_id uuid not null references public.bots(id) on delete cascade,

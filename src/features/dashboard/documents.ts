@@ -1,5 +1,4 @@
 import { profileFromDocument } from "@/lib/bot-settings";
-import { extractFileSummary } from "@/lib/extract-file-text";
 import type { KnowledgeSource } from "@/lib/test-assistant";
 import type { CloudDocument, DashboardDocument } from "./types";
 
@@ -37,21 +36,14 @@ export function cloudDocumentFromRecord(record: CloudDocument): DashboardDocumen
   };
 }
 
-export async function documentFromFile(file: File, id: number): Promise<DashboardDocument> {
-  let summary = "";
-  try {
-    summary = await extractFileSummary(file);
-  } catch {
-    summary = "This file could not be read in the browser. Try a text-based PDF, TXT, or Markdown document.";
-  }
+export function documentFromFile(file: File, id: number): DashboardDocument {
   return {
     id,
     name: file.name,
     type: documentType(file.name),
     size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
     status: "Indexing",
-    summary,
-    profile: profileFromDocument(file.name, summary),
+    summary: "Waiting for secure server extraction…",
     cloudStatus: "Uploading",
   };
 }

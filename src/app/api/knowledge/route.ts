@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   const result = await storeKnowledgeFile(context, file, extracted.text);
   return "error" in result
     ? Response.json(result, { status: 502 })
-    : Response.json({ ...result, status: "ready" }, { status: 201 });
+    : Response.json({ ...result, extractedText: extracted.text, status: "ready" }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
@@ -79,5 +79,12 @@ export async function DELETE(request: Request) {
   const { error: storageError } = await context.supabase.storage.from("knowledge-files").remove([data.storage_path]);
   if (storageError) return serviceError("Knowledge storage delete failed", storageError);
   const { error: deleteError } = await context.supabase.from("documents").delete().eq("id", id).eq("bot_id", context.botId);
-  return deleteError ? serviceError("Knowledge row delete failed", deleteError) : Response.json({ deleted: true });
+  if (deleteError) return serviceError("Knowledge row delete failed", deleteError);
+  const { count, error: countError } = await context.supabase.from("documents").select("id", { count: "exact", head: true }).eq("bot_id", context.botId).eq("processing_status", "ready");
+  if (countError) return serviceError("Knowledge cleanup check failed", countError);
+  if (!count) {
+    const { error } = await context.supabase.from("bots").update({ is_published: false }).eq("id", context.botId);
+    if (error) return serviceError("Widget privacy update failed", error);
+  }
+  return Response.json({ deleted: true });
 }

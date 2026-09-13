@@ -45,6 +45,11 @@ export async function PATCH(request: Request) {
   if (!id) return Response.json({ error: "A bot id is required." }, { status: 400 });
   const context = await getKnowledgeContext(token, id);
   if ("error" in context) return Response.json({ error: context.error }, { status: context.status });
+  if (body.published === true) {
+    const { count, error } = await context.supabase.from("documents").select("id", { count: "exact", head: true }).eq("bot_id", context.botId).eq("processing_status", "ready");
+    if (error) return serviceError("Widget source check failed", error);
+    if (!count) return Response.json({ error: "Add a ready knowledge source before publishing." }, { status: 409 });
+  }
   const updates: Record<string, string | boolean> = {};
   if (typeof body.name === "string" && body.name.trim()) updates.name = body.name.trim().slice(0, 64);
   if (typeof body.welcome === "string" && body.welcome.trim()) updates.welcome_message = body.welcome.trim().slice(0, 400);

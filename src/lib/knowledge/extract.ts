@@ -1,3 +1,5 @@
+import path from "node:path";
+
 const MAX_TEXT_LENGTH = 12_000;
 const MIME_BY_EXTENSION: Record<string, string[]> = {
   pdf: ["application/pdf"],
@@ -25,7 +27,8 @@ async function validateFile(file: File, extension: string) {
 
 async function extractPdf(buffer: ArrayBuffer) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const document = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const standardFontDataUrl = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
+  const document = await pdfjs.getDocument({ data: new Uint8Array(buffer), standardFontDataUrl }).promise;
   const pages: string[] = [];
   for (let pageNumber = 1; pageNumber <= Math.min(document.numPages, 60); pageNumber += 1) {
     const page = await document.getPage(pageNumber);

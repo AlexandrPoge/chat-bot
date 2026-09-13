@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+
 type Bucket = { count: number; resetAt: number };
 
 const buckets = new Map<string, Bucket>();
@@ -44,5 +47,3 @@ export async function takeChatRequest(request: Request, botId: string) {
   }
   return data === false ? { allowed: false, retryAfter: 60 } : memory;
 }
-import { createHash } from "node:crypto";
-import { getSupabaseAdminClient } from "@/lib/supabase/admin";

@@ -50,9 +50,9 @@ Every TypeScript source file is kept below 120 lines. The entry components are i
 npm run dev
 ```
 
-Open http://localhost:3000 in the browser. The dashboard and widget expose a `Gemini` mode for live, source-grounded replies and a free `Test AI` mode that never makes an external AI request. Copy `.env.example` to `.env.local` and add `GEMINI_API_KEY` to enable Gemini; the key is used only by `/api/chat` on the server. PDF, DOCX, TXT, and Markdown text is extracted in the browser before a signed-in upload is stored in Supabase.
+Open http://localhost:3000 in the browser and sign in. The dashboard exposes a `Gemini` mode for live, source-grounded replies and a free `Test AI` mode that never makes an external AI request. Copy `.env.example` to `.env.local` and add `GEMINI_API_KEY` to enable Gemini; the key is used only by `/api/chat` on the server. The secure upload API validates and extracts PDF, DOCX, TXT, and Markdown text before storing the private file and indexed chunks in Supabase.
 
-For persistent data, run every Supabase migration in filename order and set the environment values described in [`supabase/README.md`](supabase/README.md). The last migration adds `billing_events`, where a reviewer can inspect mock subscription amount, plan, status, and timestamp. Never commit real API keys or `.env.local`.
+For persistent data, run every Supabase migration in filename order and set the environment values described in [`supabase/README.md`](supabase/README.md). The migrations add RLS, private Storage, filtered pgvector search, durable chat throttling, publish controls, and `billing_events`, where a reviewer can inspect mock subscription amount, plan, status, and timestamp. Never commit real API keys or `.env.local`.
 
 ## Quality checks
 

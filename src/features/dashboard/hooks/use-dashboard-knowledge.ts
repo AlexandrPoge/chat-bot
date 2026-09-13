@@ -1,8 +1,7 @@
 import { type ChangeEvent, useEffect, useState } from "react";
-import type { BotSettings } from "@/lib/bot-settings";
-import { writeKnowledgeSnapshot } from "@/lib/knowledge-store";
+import { profileFromDocument, type BotSettings } from "@/lib/bot-settings";
 import { cloudDocumentFromRecord, documentFromFile } from "../documents";
-import { accessToken, deleteCloudDocument, fetchCloudDocuments, uploadDocuments } from "../knowledge-api";
+import { accessToken, deleteCloudDocument, fetchCloudDocuments, uploadDocuments, type UploadResult } from "../knowledge-api";
 import type { DashboardDocument } from "../types";
 
 type Options = {
@@ -10,16 +9,16 @@ type Options = {
   settings: BotSettings;
   notify: (message: string) => void;
   resetChat: (document?: DashboardDocument) => void;
-  saveSettings: (settings: BotSettings) => void;
+  saveSettings: (settings: BotSettings) => Promise<boolean>;
 };
 
-function finishSync(items: DashboardDocument[], results: { id: number; cloudId?: string; error?: string }[]) {
+function finishSync(items: DashboardDocument[], results: UploadResult[]) {
   return items.map((item) => {
     const result = results.find((candidate) => candidate.id === item.id);
     if (!result) return item;
     const size = item.size.replace(" · Supabase", "").replace(" · needs retry", "");
     return result.cloudId
-      ? { ...item, status: "Ready" as const, size: `${size} · Supabase`, cloudStatus: "Synced" as const, cloudId: result.cloudId }
+      ? { ...item, status: "Ready" as const, size: `${size} · Supabase`, summary: result.summary ?? item.summary, profile: profileFromDocument(item.name, result.summary ?? ""), cloudStatus: "Synced" as const, cloudId: result.cloudId }
       : { ...item, status: "Ready" as const, size: `${size} · needs retry`, cloudStatus: "Failed" as const };
   });
 }
@@ -29,9 +28,6 @@ export function useDashboardKnowledge(options: Options) {
   const [activeSourceId, setActiveSourceId] = useState(0);
   const activeDocument = documents.find((item) => item.id === activeSourceId) ?? documents[0];
 
-  useEffect(() => {
-    writeKnowledgeSnapshot({ activeSourceId, sources: documents.map(({ cloudId, id, name, summary }) => ({ cloudId, id, name, summary })) });
-  }, [activeSourceId, documents]);
   useEffect(() => {
     if (!options.botId) return;
     let cancelled = false;
@@ -55,13 +51,13 @@ export function useDashboardKnowledge(options: Options) {
     return () => { cancelled = true; };
   }, [options.botId]);
 
-  const chooseSource = (document: DashboardDocument) => {
+  const chooseSource = async (document: DashboardDocument) => {
     setActiveSourceId(document.id);
     options.resetChat(document);
     const profile = document.profile;
     if (profile && Object.keys(profile).length) {
-      options.saveSettings({ ...options.settings, ...profile });
-      options.notify(`“${document.name}” is active. Bot name and greeting updated from the file.`);
+      const saved = await options.saveSettings({ ...options.settings, ...profile });
+      if (saved) options.notify(`“${document.name}” is active. Bot name and greeting updated from the file.`);
       return;
     }
     options.notify(`Test AI now uses “${document.name}”.`);
@@ -86,13 +82,11 @@ export function useDashboardKnowledge(options: Options) {
   };
   const addFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    const additions = await Promise.all(files.map((file, index) => documentFromFile(file, Date.now() + index)));
+    const additions = files.map((file, index) => documentFromFile(file, Date.now() + index));
     if (!additions.length) return;
     setDocuments((items) => [...additions, ...items]);
     setActiveSourceId(additions[0].id);
     options.resetChat(additions[0]);
-    const profile = additions.find((item) => Object.keys(item.profile ?? {}).length)?.profile;
-    if (profile) options.saveSettings({ ...options.settings, ...profile });
     const token = await accessToken();
     if (!token) {
       setDocuments((items) => finishSync(items, additions.map((item) => ({ id: item.id, error: "No session" }))));
@@ -103,7 +97,11 @@ export function useDashboardKnowledge(options: Options) {
     const results = await uploadDocuments(files, additions, token, options.botId);
     setDocuments((items) => finishSync(items, results));
     const failed = results.filter((result) => result.error).length;
-    const profileMessage = " Bot name and greeting were created from the file name.";
+    const profiled = results.find((result) => result.cloudId && result.summary);
+    const source = additions.find((item) => item.id === profiled?.id);
+    const profile = source && profiled?.summary ? profileFromDocument(source.name, profiled.summary) : undefined;
+    const profileApplied = profile ? await options.saveSettings({ ...options.settings, ...profile }) : false;
+    const profileMessage = profileApplied ? " Bot name and greeting were created from the file." : "";
     options.notify(failed ? `${additions.length - failed} source(s) synced; ${failed} need a retry.${profileMessage}` : `${additions.length} source(s) securely stored in Supabase.${profileMessage}`);
     event.target.value = "";
   };

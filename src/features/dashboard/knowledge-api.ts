@@ -29,7 +29,7 @@ export async function deleteCloudDocument(id: string, token: string, botId?: str
   return response.ok ? undefined : body.error ?? "Could not remove the cloud source.";
 }
 
-type UploadResult = { id: number; cloudId?: string; error?: string };
+export type UploadResult = { id: number; cloudId?: string; error?: string; summary?: string };
 
 export async function uploadDocuments(
   files: File[],
@@ -46,9 +46,9 @@ export async function uploadDocuments(
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
-      const body = await response.json() as { id?: string; error?: string };
+      const body = await response.json() as { id?: string; error?: string; extractedText?: string };
       return response.ok && body.id
-        ? { id: document.id, cloudId: body.id }
+        ? { id: document.id, cloudId: body.id, summary: body.extractedText }
         : { id: document.id, error: body.error ?? "Cloud upload failed." };
     } catch {
       return { id: document.id, error: "Could not reach Supabase. Check the network and retry." };

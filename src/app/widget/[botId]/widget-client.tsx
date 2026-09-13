@@ -6,7 +6,6 @@ import { WidgetHeader } from "@/features/widget/widget-header";
 import { WidgetMessages } from "@/features/widget/widget-messages";
 import { usePublicWidget } from "@/features/widget/use-public-widget";
 import type { WidgetMessage } from "@/features/widget/types";
-import { getTestAnswer } from "@/lib/test-assistant";
 
 type Props = { botId: string; sourceId?: string };
 
@@ -16,6 +15,7 @@ export default function WidgetClient({ botId, sourceId }: Props) {
   const [conversationId, setConversationId] = useState<string>();
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
+  const visitorId = useRef(`widget-${botId}-${crypto.randomUUID()}`);
   const previousSource = useRef<number | null>(null);
   useEffect(() => {
     if (previousSource.current !== null && previousSource.current !== activeSource?.id) {
@@ -31,7 +31,7 @@ export default function WidgetClient({ botId, sourceId }: Props) {
     setQuestion("");
     setLoading(true);
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ botId, conversationId, question: value, sources: activeSource ? [activeSource] : [], visitorId: `widget-${botId}` }) });
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ botId, conversationId, question: value, sources: activeSource ? [activeSource] : [], visitorId: visitorId.current }) });
       const body = await response.json() as { answer?: string; conversationId?: string; source?: string };
       if (response.ok && body.answer?.trim()) {
         if (body.conversationId) setConversationId(body.conversationId);
@@ -39,14 +39,9 @@ export default function WidgetClient({ botId, sourceId }: Props) {
         setLoading(false);
         return;
       }
-    } catch {
-      // A local source-grounded reply is safer than leaving a customer without an answer.
-    }
-    window.setTimeout(() => {
-      const answer = getTestAnswer(value, activeSource ? [activeSource] : [], Date.now());
-      setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", ...answer }]);
-      setLoading(false);
-    }, 360);
+    } catch {}
+    setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", content: "I couldn’t reach the knowledge service. Please try again in a moment." }]);
+    setLoading(false);
   };
   if (loadingBot) return <main className="grid h-dvh place-items-center rounded-[22px] bg-white text-xs font-bold text-[#758075]">Loading assistant…</main>;
   if (!available) return <main className="grid h-dvh place-items-center rounded-[22px] bg-white p-6 text-center text-sm text-[#758075]">This assistant is not published yet.</main>;

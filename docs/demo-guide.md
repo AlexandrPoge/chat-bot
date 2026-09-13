@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The app runs in free Test AI mode without credentials. Add the optional values from `.env.example` before demonstrating source-grounded Gemini answers.
+Open `http://localhost:3000` and log in with a Supabase account. Test AI stays free and does not call an external model. Add the optional values from `.env.example` before demonstrating source-grounded Gemini answers.
 
 ## Three-minute recording script
 
@@ -52,7 +52,7 @@ Open `http://localhost:3000`. The app runs in free Test AI mode without credenti
 ## What to call out to a reviewer
 
 - Scope is intentionally narrow: knowledge sources, an answer-testing surface, a public widget, and a transparent billing model.
-- The product avoids ungrounded claims: answers display their knowledge source, and the server prompt instructs the model not to guess.
+- The product avoids ungrounded claims: analytics link each answer to its knowledge source, while the customer-facing reply stays clean and the server prompt instructs the model not to guess.
 - The compact widget loader works independently of the application shell and can be tested at `/demo.html`.
 - The billing screen is deliberately labelled as a mock flow. It records a `$39` successful test event and the selected plan in Supabase, but never transmits card fields or charges money.
 - `npm run lint` and `npm run build` pass before each release commit.

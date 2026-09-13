@@ -1,12 +1,5 @@
 import { useSyncExternalStore } from "react";
 import {
-  BOT_SETTINGS_CHANGE_EVENT,
-  BOT_SETTINGS_STORAGE_KEY,
-  botSettingsSnapshot,
-  defaultBotSettingsSnapshot,
-  type BotSettings,
-} from "@/lib/bot-settings";
-import {
   DEMO_SESSION_CHANGE_EVENT,
   DEMO_SESSION_STORAGE_KEY,
   defaultDemoSessionSnapshot,
@@ -23,15 +16,6 @@ function subscribe(key: string, eventName: string, callback: () => void) {
     window.removeEventListener("storage", onStorage);
     window.removeEventListener(eventName, callback);
   };
-}
-
-export function useSavedSettings(): BotSettings {
-  const snapshot = useSyncExternalStore(
-    (callback) => subscribe(BOT_SETTINGS_STORAGE_KEY, BOT_SETTINGS_CHANGE_EVENT, callback),
-    botSettingsSnapshot,
-    () => defaultBotSettingsSnapshot,
-  );
-  return JSON.parse(snapshot) as BotSettings;
 }
 
 export function useDemoSession(): DemoSession | null {

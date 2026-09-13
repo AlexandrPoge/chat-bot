@@ -62,8 +62,7 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
     chunk_index: chunkIndex,
   }));
   if (!chunks.length) {
-    await context.supabase.from("documents").update({ processing_status: "ready" }).eq("id", documentId);
-    return { id: documentId, indexed: false, storagePath };
+    return finishDocument(context, documentId, storagePath, false);
   }
 
   const { error: chunkError } = await context.supabase.from("document_chunks").insert(chunks);
@@ -73,6 +72,14 @@ export async function storeKnowledgeFile(context: KnowledgeContext, file: File, 
     await context.supabase.storage.from("knowledge-files").remove([storagePath]);
     return { error: "Text indexing failed. Nothing was saved; please retry." };
   }
-  await context.supabase.from("documents").update({ processing_status: "ready" }).eq("id", documentId);
-  return { id: documentId, indexed: embeddings.length === chunks.length, storagePath };
+  return finishDocument(context, documentId, storagePath, embeddings.length === chunks.length);
+}
+
+async function finishDocument(context: KnowledgeContext, documentId: string, storagePath: string, indexed: boolean) {
+  const { error } = await context.supabase.from("documents").update({ processing_status: "ready" }).eq("id", documentId);
+  if (!error) return { id: documentId, indexed, storagePath };
+  console.error("Knowledge ready-state update failed", error);
+  await context.supabase.from("documents").delete().eq("id", documentId);
+  await context.supabase.storage.from("knowledge-files").remove([storagePath]);
+  return { error: "The source could not finish indexing. Nothing was saved; please retry." };
 }

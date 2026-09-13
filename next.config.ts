@@ -18,6 +18,7 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["pdfjs-dist"],
   async headers() {
     const headers = [
       { key: "X-Content-Type-Options", value: "nosniff" },
