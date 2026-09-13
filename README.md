@@ -10,19 +10,19 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 
 - A conversion-focused product landing page with pricing
 - A workspace for creating and configuring support bots
-- Document ingestion, search, and source-cited AI chat
+- Document ingestion, pgvector search, and source-grounded AI chat
 - An embeddable web widget
-- A mock billing flow with plan-based feature gates
+- A mock billing flow with plan-based feature gates and an auditable backend event log
 
 ## Assignment coverage
 
 | Requirement | Where to verify it |
 | --- | --- |
 | Descriptive landing page and pricing | `/` — feature story, Starter/Pro pricing, and clear CTAs |
-| Upload docs and turn them into a bot | `/dashboard` → **Knowledge** — PDF, DOCX, TXT, and Markdown extraction, active-source selector, and citations |
+| Upload docs and turn them into a bot | `/dashboard` → **Knowledge** — PDF, DOCX, TXT, and Markdown extraction, private cloud storage, embeddings, and an active-source selector |
 | ChatGPT-like in-app chat | `/dashboard` → **Conversations** — Test AI and Gemini-backed source-grounded answers |
 | Embeddable customer widget | `/dashboard` → **Widget** → **Open test site** or `/demo.html` — a compact widget floats on a separate marketing page |
-| Pricing and billing | Dashboard **Upgrade to Pro** — transparent Stripe-style test-card flow; no money or card data is stored |
+| Pricing and billing | Dashboard **Upgrade to Pro** — Stripe-style test checkout; the plan and `$39` mock event are stored in Supabase, while money never moves and card fields are never sent to the server |
 | Supabase and authentication | `/login` — email/password, with an optional Google OAuth path when enabled in Supabase; authenticated source uploads are stored in private Storage and chunked in Postgres with a pgvector retrieval schema |
 | Presentation deliverable | [`docs/demo-guide.md`](docs/demo-guide.md) — a three-minute walkthrough and screenshot checklist |
 
@@ -30,7 +30,7 @@ See [`docs/demo-guide.md`](docs/demo-guide.md) for the presentation script and s
 
 - Next.js, TypeScript, Tailwind CSS
 - Supabase: auth, Postgres with pgvector, and private object storage
-- Gemini 3.6 Flash through the server-side Interactions API for source-grounded live answers
+- Gemini through a server-side API for live answers and `gemini-embedding-001` for 1,536-dimensional document retrieval
 - Free Test AI fallback: unlimited local answers without an external API request or key
 - PDF, DOCX, TXT, and Markdown extraction; uploaded source files and extracted chunks sync to Supabase
 
@@ -40,7 +40,7 @@ Every TypeScript source file is kept below 120 lines. The entry components are i
 
 - `src/features/dashboard/`: dashboard pages, small reusable UI components, and isolated hooks for chat and document state.
 - `src/features/widget/`: the embedded chat's UI parts and browser-storage subscriptions.
-- `src/lib/knowledge/`: server-only Supabase ownership checks, storage upload, and chunking. The route handler only validates HTTP input and delegates work here.
+- `src/lib/knowledge/`: server-only ownership checks, storage upload, chunking, vector search, and chat persistence.
 - `src/lib/test-assistant/`: deterministic fallback reply rules split by generic, product, and dental scenarios.
 - `src/app/api/`: HTTP boundary only; keys and Supabase admin access never reach browser modules.
 
@@ -52,7 +52,7 @@ npm run dev
 
 Open http://localhost:3000 in the browser. The dashboard and widget expose a `Gemini` mode for live, source-grounded replies and a free `Test AI` mode that never makes an external AI request. Copy `.env.example` to `.env.local` and add `GEMINI_API_KEY` to enable Gemini; the key is used only by `/api/chat` on the server. PDF, DOCX, TXT, and Markdown text is extracted in the browser before a signed-in upload is stored in Supabase.
 
-For persistent data, run the Supabase migration and set the Supabase environment values described in [`supabase/README.md`](supabase/README.md). Never commit real API keys or `.env.local`.
+For persistent data, run every Supabase migration in filename order and set the environment values described in [`supabase/README.md`](supabase/README.md). The last migration adds `billing_events`, where a reviewer can inspect mock subscription amount, plan, status, and timestamp. Never commit real API keys or `.env.local`.
 
 ## Quality checks
 

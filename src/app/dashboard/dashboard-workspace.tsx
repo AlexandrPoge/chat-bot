@@ -6,6 +6,7 @@
 import { useCallback, useRef, useState } from "react";
 import { clearDemoSession } from "@/lib/auth-session";
 import { DEFAULT_BOT_SETTINGS } from "@/lib/bot-settings";
+import { recordTestPayment } from "@/features/dashboard/billing-api";
 import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
 import { ConversationsPage } from "@/features/dashboard/components/conversations-page";
 import { KnowledgePage } from "@/features/dashboard/components/knowledge-page";
@@ -46,10 +47,22 @@ export function DashboardWorkspace() {
     if (choice === "Starter") { void bots.savePlan("Starter"); setBillingStep(null); notify("Starter remains active."); return; }
     setBillingStep("checkout");
   };
+  const completePayment = async () => {
+    try {
+      const result = await recordTestPayment(bots.activeId, "Pro");
+      await bots.savePlan("Pro");
+      setBillingStep(null);
+      notify(result.recorded ? "Pro is active. The $39 test payment is saved in Supabase." : result.warning ?? "Pro is active in test mode.");
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Test payment failed.");
+      return false;
+    }
+  };
   const content = active === "conversations" ? <ConversationsPage activeDocument={knowledge.activeDocument} isAnswering={chat.isAnswering} messages={chat.messages} onAsk={(question, mode) => chat.askBot(question, mode, knowledge.activeDocument)} settings={settings} />
     : active === "knowledge" ? <KnowledgePage activeDocument={knowledge.activeDocument} activeSourceId={knowledge.activeSourceId} documents={knowledge.documents} fileInput={fileInput} onAddFiles={knowledge.addFiles} onChoose={knowledge.chooseSource} onRemove={knowledge.removeSource} />
     : active === "widget" ? <WidgetPage activeDocument={knowledge.activeDocument} code={embedCode} copied={copied} onCopy={copyEmbedCode} />
       : active === "settings" ? <SettingsEditor documentCount={knowledge.documents.length} key={JSON.stringify(settings)} onReset={() => { void bots.saveSettings(DEFAULT_BOT_SETTINGS); notify("Default settings restored."); }} onSave={(value) => { void bots.saveSettings(value); notify("Settings saved to Supabase and widget updated."); }} onUpgrade={() => setBillingStep("plans")} plan={bots.plan} settings={settings} />
         : <OverviewPage activeDocument={knowledge.activeDocument} documents={knowledge.documents} isAnswering={chat.isAnswering} messages={chat.messages} onAsk={(question, mode) => chat.askBot(question, mode, knowledge.activeDocument)} onGoTo={setActive} settings={settings} stats={stats} userName={session?.email.split("@")[0] || ""} />;
-  return <><DashboardShell active={active} activeBotId={bots.activeId} bots={bots.bots} onBotCreate={() => { void bots.add(); }} onBotSelect={(id) => { bots.select(id); chat.resetChat(); }} onGoTo={setActive} onLogout={() => { clearDemoSession(); window.location.assign("/"); }} onProfileToggle={() => setProfileOpen((value) => !value)} onUpgrade={() => setBillingStep("plans")} plan={bots.plan} profileOpen={profileOpen} session={session} toast={toast}>{content}</DashboardShell>{billingStep === "plans" && <PlanDialog choice={choice} onChoose={setChoice} onClose={() => setBillingStep(null)} onContinue={activatePlan} />}{billingStep === "checkout" && <TestCheckout onClose={() => setBillingStep("plans")} onPaid={() => { void bots.savePlan("Pro"); setBillingStep(null); notify("Pro is active. This was a test payment — no card was charged."); }} />}</>;
+  return <><DashboardShell active={active} activeBotId={bots.activeId} bots={bots.bots} onBotCreate={() => { void bots.add(); }} onBotSelect={(id) => { bots.select(id); chat.resetChat(); }} onGoTo={setActive} onLogout={() => { clearDemoSession(); window.location.assign("/"); }} onProfileToggle={() => setProfileOpen((value) => !value)} onUpgrade={() => setBillingStep("plans")} plan={bots.plan} profileOpen={profileOpen} session={session} toast={toast}>{content}</DashboardShell>{billingStep === "plans" && <PlanDialog choice={choice} onChoose={setChoice} onClose={() => setBillingStep(null)} onContinue={activatePlan} />}{billingStep === "checkout" && <TestCheckout onClose={() => setBillingStep("plans")} onPaid={completePayment} />}</>;
 }

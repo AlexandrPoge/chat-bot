@@ -29,11 +29,11 @@ Open `http://localhost:3000`. The app runs in free Test AI mode without credenti
 
    In the private chat, ask: `Can I invite a client to a project?` Show that Orbit returns a direct answer and cites `Team collaboration guide.pdf`. Then open **Knowledge** and explain that every answer is limited to the uploaded sources.
 
-   Screenshot: answer plus visible source citation.
+   Screenshot: a useful answer grounded in the selected source.
 
 4. Knowledge ingestion — 25 seconds
 
-   In **Knowledge**, choose **Add sources** and upload a PDF, DOCX, TXT, or Markdown file. Show the `Indexing` state change to `Ready`, the active-source switch, and the Supabase sync state after signing in. Explain that the bot uses only the selected source and shows its citation.
+   In **Knowledge**, choose **Add sources** and upload a PDF, DOCX, TXT, or Markdown file. Show the `Indexing` state change to `Ready`, the active-source switch, and the Supabase sync state after signing in. Explain that the bot embeds and retrieves relevant passages from the selected source without cluttering its customer-facing reply with a filename.
 
    Screenshot: knowledge table after upload.
 
@@ -54,7 +54,7 @@ Open `http://localhost:3000`. The app runs in free Test AI mode without credenti
 - Scope is intentionally narrow: knowledge sources, an answer-testing surface, a public widget, and a transparent billing model.
 - The product avoids ungrounded claims: answers display their knowledge source, and the server prompt instructs the model not to guess.
 - The compact widget loader works independently of the application shell and can be tested at `/demo.html`.
-- The billing screen is deliberately labelled as a mock flow, satisfying the assignment without pretending to take payment.
+- The billing screen is deliberately labelled as a mock flow. It records a `$39` successful test event and the selected plan in Supabase, but never transmits card fields or charges money.
 - `npm run lint` and `npm run build` pass before each release commit.
 
 ## Live Gemini setup
