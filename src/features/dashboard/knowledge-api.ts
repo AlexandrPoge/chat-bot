@@ -7,14 +7,21 @@ export async function accessToken() {
   return data.session?.access_token;
 }
 
-export async function fetchCloudDocuments(token: string): Promise<CloudDocument[]> {
-  const response = await fetch("/api/knowledge", { headers: { Authorization: `Bearer ${token}` } });
+function knowledgePath(botId?: string, documentId?: string) {
+  const query = new URLSearchParams();
+  if (botId) query.set("botId", botId);
+  if (documentId) query.set("id", documentId);
+  return `/api/knowledge?${query}`;
+}
+
+export async function fetchCloudDocuments(token: string, botId?: string): Promise<CloudDocument[]> {
+  const response = await fetch(knowledgePath(botId), { headers: { Authorization: `Bearer ${token}` } });
   const body = await response.json() as { documents?: CloudDocument[] };
   return response.ok && body.documents ? body.documents : [];
 }
 
-export async function deleteCloudDocument(id: string, token: string) {
-  const response = await fetch(`/api/knowledge?id=${encodeURIComponent(id)}`, {
+export async function deleteCloudDocument(id: string, token: string, botId?: string) {
+  const response = await fetch(knowledgePath(botId, id), {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -28,13 +35,14 @@ export async function uploadDocuments(
   files: File[],
   documents: DashboardDocument[],
   token: string,
+  botId?: string,
 ): Promise<UploadResult[]> {
   return Promise.all(documents.map(async (document, index) => {
     const form = new FormData();
     form.set("file", files[index]);
     form.set("extractedText", document.summary);
     try {
-      const response = await fetch("/api/knowledge", {
+      const response = await fetch(knowledgePath(botId), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,

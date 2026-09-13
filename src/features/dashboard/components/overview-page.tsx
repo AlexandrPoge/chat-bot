@@ -3,12 +3,13 @@ import { BadgeCheck, ChevronRight, Database, FileText, MessageCircleMore, type L
 import type { BotSettings } from "@/lib/bot-settings";
 import { BotPreview } from "./bot-preview";
 import { ChatPanel } from "./chat-panel";
-import type { ChatMessage, ChatMode, DashboardDocument, Section } from "../types";
+import type { ChatMessage, ChatMode, DashboardDocument, DashboardStats, Section } from "../types";
 
 type Props = {
   activeDocument?: DashboardDocument;
   documents: DashboardDocument[];
   settings: BotSettings;
+  stats: DashboardStats;
   messages: ChatMessage[];
   isAnswering: boolean;
   userName: string;
@@ -16,14 +17,14 @@ type Props = {
   onGoTo: (section: Section) => void;
 };
 
-const metrics: [string, string, string, string, LucideIcon][] = [
-  ["Knowledge sources", "", "All indexed", "Your active source is ready, and each uploaded file can be selected separately.", Database],
-  ["Answers this month", "438", "↑ 18% vs. Aug", "Most questions are about onboarding and access. Open Conversations to replay customer scenarios.", MessageCircleMore],
-  ["Source confidence", "93%", "Healthy", "Confidence rises when a customer question matches a detailed source. Every answer remains grounded in the selected source.", BadgeCheck],
-];
-
 export function OverviewPage(props: Props) {
-  const { activeDocument, documents, settings, messages, isAnswering, userName, onAsk, onGoTo } = props;
+  const { activeDocument, documents, settings, stats, messages, isAnswering, userName, onAsk, onGoTo } = props;
+  const confidence = stats.answers ? Math.round((stats.groundedAnswers / stats.answers) * 100) : 0;
+  const metrics: [string, string, string, string, LucideIcon][] = [
+    ["Knowledge sources", String(stats.sources), stats.sources ? "Synced in Supabase" : "Add a cloud source", "Every ready source is stored privately and indexed for this bot.", Database],
+    ["Answers", String(stats.answers), `${stats.conversations} conversations`, "Live customer and Gemini preview conversations are persisted in Supabase.", MessageCircleMore],
+    ["Grounded answers", stats.answers ? `${confidence}%` : "—", stats.answers ? "Measured from sources" : "No live answers yet", "This ratio is calculated from assistant messages linked to a source document.", BadgeCheck],
+  ];
   const [selectedMetric, setSelectedMetric] = useState(0);
   const [, value, , detail] = metrics[selectedMetric];
   return <div className="space-y-5">

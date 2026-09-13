@@ -34,3 +34,18 @@ export type CloudDocument = {
   processing_status: string;
   extracted_text: string | null;
 };
+
+export type CloudBot = {
+  id: string;
+  name: string;
+  welcome_message: string;
+  accent_color: string;
+  plan: Plan;
+};
+
+export type DashboardStats = {
+  answers: number;
+  conversations: number;
+  groundedAnswers: number;
+  sources: number;
+};

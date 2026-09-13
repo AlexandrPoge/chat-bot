@@ -7,7 +7,8 @@ function unauthorized(message: string) {
 
 async function contextFor(request: Request) {
   const token = bearerToken(request);
-  return token ? getKnowledgeContext(token) : undefined;
+  const botId = new URL(request.url).searchParams.get("botId") ?? undefined;
+  return token ? getKnowledgeContext(token, botId) : undefined;
 }
 
 export async function GET(request: Request) {

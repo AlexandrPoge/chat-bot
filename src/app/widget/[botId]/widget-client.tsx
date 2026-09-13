@@ -4,15 +4,16 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { WidgetComposer } from "@/features/widget/widget-composer";
 import { WidgetHeader } from "@/features/widget/widget-header";
 import { WidgetMessages } from "@/features/widget/widget-messages";
-import { useWidgetKnowledge, useWidgetSettings } from "@/features/widget/use-widget-stores";
+import { usePublicWidget } from "@/features/widget/use-public-widget";
 import type { WidgetMessage } from "@/features/widget/types";
 import { getTestAnswer } from "@/lib/test-assistant";
 
-export default function WidgetClient() {
-  const settings = useWidgetSettings();
-  const knowledge = useWidgetKnowledge();
-  const activeSource = knowledge.sources.find((source) => source.id === knowledge.activeSourceId) ?? knowledge.sources[0];
+type Props = { botId: string; sourceId?: string };
+
+export default function WidgetClient({ botId, sourceId }: Props) {
+  const { settings, source: activeSource } = usePublicWidget(botId, sourceId);
   const [messages, setMessages] = useState<WidgetMessage[]>([{ id: 1, role: "assistant", content: "" }]);
+  const [conversationId, setConversationId] = useState<string>();
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const previousSource = useRef<number | null>(null);
@@ -30,9 +31,10 @@ export default function WidgetClient() {
     setQuestion("");
     setLoading(true);
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: value, sources: activeSource ? [activeSource] : [] }) });
-      const body = await response.json() as { answer?: string; source?: string };
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId, question: value, sources: activeSource ? [activeSource] : [], visitorId: `widget-${botId}` }) });
+      const body = await response.json() as { answer?: string; conversationId?: string; source?: string };
       if (response.ok && body.answer?.trim()) {
+        if (body.conversationId) setConversationId(body.conversationId);
         setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", content: body.answer ?? "", source: body.source ?? activeSource?.name }]);
         setLoading(false);
         return;

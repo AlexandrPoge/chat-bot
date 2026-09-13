@@ -6,6 +6,7 @@ import { accessToken, deleteCloudDocument, fetchCloudDocuments, uploadDocuments 
 import type { DashboardDocument } from "../types";
 
 type Options = {
+  botId?: string;
   settings: BotSettings;
   notify: (message: string) => void;
   resetChat: (document?: DashboardDocument) => void;
@@ -47,17 +48,19 @@ export function useDashboardKnowledge(options: Options) {
     void (async () => {
       try {
         const token = await accessToken();
-        if (!token) return;
-        const cloud = await fetchCloudDocuments(token);
+        if (!token || !options.botId) return;
+        const cloud = await fetchCloudDocuments(token, options.botId);
         if (cancelled) return;
         const restored = cloud.map(cloudDocumentFromRecord);
-        setDocuments((items) => [...restored.filter((source) => !items.some((item) => item.cloudId === source.cloudId || item.name === source.name)), ...items]);
+        const next = restored.length ? restored : DEFAULT_KNOWLEDGE_SNAPSHOT.sources.map(documentFromSnapshot);
+        setDocuments(next);
+        setActiveSourceId(next[0]?.id ?? 0);
       } catch {
         // Local sources and Test AI remain usable when Supabase is temporarily unreachable.
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [options.botId]);
 
   const chooseSource = (document: DashboardDocument) => {
     setActiveSourceId(document.id);
@@ -74,7 +77,7 @@ export function useDashboardKnowledge(options: Options) {
     const source = documents.find((document) => document.id === id);
     if (source?.cloudId) {
       const token = await accessToken();
-      const error = token ? await deleteCloudDocument(source.cloudId, token) : "Sign in again before removing this cloud source.";
+      const error = token ? await deleteCloudDocument(source.cloudId, token, options.botId) : "Sign in again before removing this cloud source.";
       if (error) {
         options.notify(error);
         return;
@@ -104,7 +107,7 @@ export function useDashboardKnowledge(options: Options) {
       event.target.value = "";
       return;
     }
-    const results = await uploadDocuments(files, additions, token);
+    const results = await uploadDocuments(files, additions, token, options.botId);
     setDocuments((items) => finishSync(items, results));
     const failed = results.filter((result) => result.error).length;
     const profileMessage = " Bot name and greeting were created from the file name.";

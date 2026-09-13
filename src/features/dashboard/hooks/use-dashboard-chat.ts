@@ -15,8 +15,9 @@ function firstMessage(document?: DashboardDocument): ChatMessage {
 
 export function useDashboardChat(notify: (message: string) => void) {
   const [messages, setMessages] = useState<ChatMessage[]>([firstMessage()]);
+  const [conversationId, setConversationId] = useState<string>();
   const [isAnswering, setIsAnswering] = useState(false);
-  const resetChat = (document?: DashboardDocument) => setMessages([firstMessage(document)]);
+  const resetChat = (document?: DashboardDocument) => { setMessages([firstMessage(document)]); setConversationId(undefined); };
   const appendTest = (question: string, source?: DashboardDocument) => {
     const answer = getTestAnswer(question, source ? [source] : [], Date.now());
     setMessages((items) => [...items, { id: Date.now() + 1, role: "assistant", ...answer }]);
@@ -35,10 +36,11 @@ export function useDashboardChat(notify: (message: string) => void) {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, sources: source ? [source] : [] }),
+        body: JSON.stringify({ conversationId, question, sources: source ? [source] : [], visitorId: "dashboard-preview" }),
       });
-      const body = await response.json() as { answer?: string; source?: string; mode?: "test" | "live" };
+      const body = await response.json() as { answer?: string; conversationId?: string; source?: string; mode?: "test" | "live" };
       if (response.ok && body.answer?.trim()) {
+        if (body.conversationId) setConversationId(body.conversationId);
         const answer = body.answer.trim();
         setMessages((items) => [...items, {
           id: Date.now() + 1,

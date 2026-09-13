@@ -14,7 +14,9 @@
 
   const origin = new URL(script.src).origin;
   const frame = document.createElement("iframe");
-  frame.src = `${origin}/widget/${encodeURIComponent(botId)}`;
+  const sourceId = script.dataset.source;
+  const sourceQuery = sourceId ? `?source=${encodeURIComponent(sourceId)}` : "";
+  frame.src = `${origin}/widget/${encodeURIComponent(botId)}${sourceQuery}`;
   frame.title = "Helpwise support chat";
   frame.className = "helpwise-widget-frame";
   frame.setAttribute("aria-label", "Open support chat");

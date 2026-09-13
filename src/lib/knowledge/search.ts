@@ -15,7 +15,13 @@ export async function retrieveRelevantChunks(question: string, documentIds: stri
     .returns<DocumentRow[]>();
   if (error || !documents?.length) return [];
 
-  const queryEmbedding = await embedSearchQuery(question);
+  let queryEmbedding: number[] | undefined;
+  try {
+    queryEmbedding = await embedSearchQuery(question);
+  } catch (error) {
+    console.error("Knowledge query embedding failed", error);
+    return [];
+  }
   if (!queryEmbedding) return [];
   const allowed = new Set(documents.map((document) => document.id));
   const names = new Map(documents.map((document) => [document.id, document.filename]));
@@ -24,7 +30,10 @@ export async function retrieveRelevantChunks(question: string, documentIds: stri
     match_bot_id: documents[0].bot_id,
     match_count: 10,
   });
-  if (matchError) throw matchError;
+  if (matchError) {
+    console.error("Supabase vector search failed", matchError);
+    return [];
+  }
   return ((matches ?? []) as MatchRow[])
     .filter((match) => allowed.has(match.document_id))
     .slice(0, 5)

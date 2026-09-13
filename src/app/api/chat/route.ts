@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
+import { recordChatExchange } from "@/lib/knowledge/chat-persistence";
 import { retrieveRelevantChunks } from "@/lib/knowledge/search";
 import { getTestAnswer } from "@/lib/test-assistant";
-
 type Source = {
   cloudId?: string;
   name: string;
@@ -10,8 +10,10 @@ type Source = {
 };
 
 type ChatRequest = {
+  conversationId?: unknown;
   question?: unknown;
   sources?: unknown;
+  visitorId?: unknown;
 };
 
 function toSources(value: unknown): Source[] {
@@ -26,6 +28,17 @@ function toSources(value: unknown): Source[] {
     }))
     .filter((source) => source.summary.length > 0)
     .slice(0, 8);
+}
+
+function persist(body: ChatRequest, source: Source | undefined, question: string, answer: string) {
+  return recordChatExchange({
+    answer, question, documentId: source?.cloudId,
+    conversationId: typeof body.conversationId === "string" ? body.conversationId : undefined,
+    visitorId: typeof body.visitorId === "string" ? body.visitorId : undefined,
+  }).catch((error) => {
+    console.error("Conversation persistence failed", error);
+    return undefined;
+  });
 }
 
 export async function POST(request: Request) {
@@ -52,8 +65,10 @@ export async function POST(request: Request) {
   const openAiApiKey = process.env.OPENAI_API_KEY;
   if (!geminiApiKey && !openAiApiKey) {
     const answer = getTestAnswer(question, sources, question.length);
+    const conversationId = await persist(body, sources[0], question, answer.content);
     return Response.json({
       answer: answer.content,
+      conversationId,
       source: answer.source,
       mode: "test",
       followUp: answer.followUp,
@@ -96,7 +111,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "The model returned no text." }, { status: 502 });
     }
 
-    return Response.json({ answer, source: sourceName, mode: "live", provider: geminiApiKey ? "gemini" : "openai", retrieval: retrieved.length ? "pgvector" : "source" });
+    const conversationId = await persist(body, sources[0], question, answer);
+    return Response.json({ answer, conversationId, source: sourceName, mode: "live", provider: geminiApiKey ? "gemini" : "openai", retrieval: retrieved.length ? "pgvector" : "source" });
   } catch (error) {
     console.error("Helpwise AI response failed", error);
     return Response.json({ error: "The AI service could not answer right now." }, { status: 502 });

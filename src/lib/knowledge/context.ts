@@ -6,6 +6,7 @@ type Bot = { id: string };
 export type KnowledgeContext = {
   botId: string;
   supabase: NonNullable<ReturnType<typeof getSupabaseAdminClient>>;
+  workspaceId: string;
 };
 
 export type ContextResult = KnowledgeContext | { error: string; status: number };
@@ -32,7 +33,13 @@ async function workspaceIdFor(context: KnowledgeContext, ownerId: string): Promi
     : { id: created.data.id };
 }
 
-async function botIdFor(context: KnowledgeContext, workspaceId: string): Promise<IdResult> {
+async function botIdFor(context: KnowledgeContext, workspaceId: string, requestedBotId?: string): Promise<IdResult> {
+  if (requestedBotId) {
+    const requested = await context.supabase.from("bots").select("id").eq("id", requestedBotId).eq("workspace_id", workspaceId).maybeSingle<Bot>();
+    return requested.error || !requested.data
+      ? { error: requested.error?.message ?? "Bot not found in this workspace.", status: requested.error ? 500 : 404 }
+      : { id: requested.data.id };
+  }
   const { data, error } = await context.supabase
     .from("bots")
     .select("id")
@@ -53,17 +60,17 @@ async function botIdFor(context: KnowledgeContext, workspaceId: string): Promise
     : { id: created.data.id };
 }
 
-export async function getKnowledgeContext(token: string): Promise<ContextResult> {
+export async function getKnowledgeContext(token: string, requestedBotId?: string): Promise<ContextResult> {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return { error: "Supabase server keys are not configured.", status: 503 };
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) return { error: "Your Supabase session has expired. Please sign in again.", status: 401 };
 
-  const context: KnowledgeContext = { supabase, botId: "" };
+  const context: KnowledgeContext = { supabase, botId: "", workspaceId: "" };
   const workspace = await workspaceIdFor(context, data.user.id);
   if ("error" in workspace) return { error: workspace.error, status: workspace.status };
-  const bot = await botIdFor(context, workspace.id);
-  return "error" in bot ? { error: bot.error, status: bot.status } : { ...context, botId: bot.id };
+  const bot = await botIdFor(context, workspace.id, requestedBotId);
+  return "error" in bot ? { error: bot.error, status: bot.status } : { ...context, botId: bot.id, workspaceId: workspace.id };
 }
 
 export function bearerToken(request: Request) {
